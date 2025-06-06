@@ -1,0 +1,581 @@
+package ae.redtoken.iz.ark.nostrtest;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import nostr.event.Kind;
+import nostr.event.impl.Filters;
+import nostr.event.impl.GenericEvent;
+import nostr.id.Identity;
+import org.bitcoin.tfw.ltbc.tc.LTBCMainTestCase;
+import org.bitcoinj.core.*;
+import org.bitcoinj.crypto.TransactionSignature;
+import org.bitcoinj.kits.WalletAppKit;
+import org.bitcoinj.params.AbstractBitcoinNetParams;
+import org.bitcoinj.params.RegTestParams;
+import org.bitcoinj.script.Script;
+import org.bitcoinj.script.ScriptBuilder;
+import org.bitcoinj.wallet.SendRequest;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Currency;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+
+import static ae.redtoken.iz.ark.nostrtest.TestNostr.RELAYS;
+
+/**
+ * Unit test for simple App.
+ */
+public class AppTest2 extends LTBCMainTestCase {
+
+    static class Actor {
+
+        WalletAppKit kit;
+        Identity identity;
+
+        Actor(AbstractBitcoinNetParams params) {
+//            RegTestParams params = RegTestParams.get();
+
+            try {
+                kit = new WalletAppKit(params, Files
+                        .createTempDirectory("wallet").toFile(), "dat");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            kit.connectToLocalHost();
+            kit.startAsync().awaitRunning();
+
+//            kit.wallet().addCoinsReceivedEventListener((wallet, transaction, coin, coin1) -> {
+//                System.out.println("Received coin " + coin + " to " + wallet);
+//            });
+
+            this.identity = Identity.generateRandomIdentity();
+        }
+    }
+
+    static class ArkService extends Actor {
+
+        ArkService(AbstractBitcoinNetParams params) {
+            super(params);
+
+            kit.wallet().addCoinsReceivedEventListener((wallet, transaction, coin, coin1) -> {
+                System.out.println("Received coin " + coin + " to " + wallet);
+            });
+
+        }
+    }
+
+    static class ArkUser extends Actor {
+        ArkUser(AbstractBitcoinNetParams params) {
+            super(params);
+        }
+    }
+
+    static TransactionOutput findOutput(Transaction tx, Script rs) {
+        return tx.getOutputs().stream().filter(o -> Arrays.equals(o.getScriptBytes(), ScriptBuilder.createP2SHOutputScript(rs).getProgram())).findFirst().orElseThrow();
+    }
+
+    @Test
+    public void test2() throws Exception {
+        RegTestParams params = RegTestParams.get();
+
+        Actor arkService = new ArkService(params);
+        ArkUser alice = new ArkUser(params);
+        ArkUser bob = new ArkUser(params);
+        ArkUser carol = new ArkUser(params);
+        ArkUser david = new ArkUser(params);
+        ArkUser eve = new ArkUser(params);
+        ArkUser freddy = new ArkUser(params);
+
+        ArkUser[] users = Arrays.asList(alice, bob, carol, david, eve, freddy).toArray(new ArkUser[0]);
+
+//        Wallet wallet = arkService.kit.wallet();
+
+        final double coinsToSendToArkService = 10;
+        final double coinsToSendToUsers = 1;
+
+        Assertions.assertEquals(Coin.ZERO, arkService.kit.wallet().getBalance());
+
+        this.ltbc.sendTo(arkService.kit.wallet().freshReceiveAddress().toString(), coinsToSendToArkService);
+
+        for (Actor user : users) {
+            this.ltbc.sendTo(user.kit.wallet().freshReceiveAddress().toString(), coinsToSendToUsers);
+        }
+
+        this.ltbc.mine(16);
+
+        // We wait for 1 second here
+        Thread.sleep(1000);
+
+        // TODO fix race condition here
+        Assertions.assertEquals(Coin.valueOf((int) coinsToSendToArkService, 0), arkService.kit.wallet().getBalance());
+
+        for (Actor user : users) {
+            Assertions.assertEquals(Coin.valueOf((int) coinsToSendToUsers, 0), user.kit.wallet().getBalance());
+        }
+
+        // Create the root node
+
+
+        // Generate keys
+        ECKey keyA = alice.kit.wallet().freshReceiveKey();
+        ECKey keyB = bob.kit.wallet().freshReceiveKey();
+        ECKey keyC = carol.kit.wallet().freshReceiveKey();
+        ECKey keyD = david.kit.wallet().freshReceiveKey();
+        ECKey keyE = eve.kit.wallet().freshReceiveKey();
+        ECKey keyF = freddy.kit.wallet().freshReceiveKey();
+        ECKey keyS = arkService.kit.wallet().freshReceiveKey();
+
+        int timeLockBlocks = 10;
+        int seqLockBlocks = 100;
+
+        final ArkScriptFactory asf = new ArkScriptFactory(seqLockBlocks, timeLockBlocks, keyS.getPubKey());
+
+        {
+            ///  Create the root node
+            // Create the transaction
+            Transaction ctx = new Transaction(params);
+            ctx.setVersion(2);
+
+            byte[][] userKeys = List.of(keyA, keyB, keyC, keyD).stream().map(ECKey::getPubKey).toArray(byte[][]::new);
+//            byte[] serviceKey = keyS.getPubKey();
+
+//            Script rs1 = asf.createVTXONodeScript(userKeys);
+            Script rs1 = asf.createVTXOLeafScript(keyA.getPubKey());
+
+            System.out.println(rs1);
+
+            // Create the output and send in the hash of the script into that output.
+            ctx.addOutput(Coin.valueOf(4, 0), ScriptBuilder.createP2SHOutputScript(rs1));
+
+            // Now let's complete and fund this transaction
+            // Todo: this part here needs to be rewritten to work with the signing strategy
+            {
+                SendRequest sr = SendRequest.forTx(ctx);
+                sr.feePerKb = Coin.valueOf(1000);
+                arkService.kit.wallet().completeTx(sr);
+
+                // Send it out
+                arkService.kit.peerGroup().broadcastTransaction(sr.tx);
+
+                // Mine
+                Thread.sleep(5000);
+                ltbc.mine(16);
+                Thread.sleep(5000);
+            }
+
+            // Add the script to the wallets so that they watch it
+//            arkService.kit.wallet().addWatchedScripts(List.of(p2shScript));
+//            alice.kit.wallet().addWatchedScripts(List.of(p2shScript));
+//            bob.kit.wallet().addWatchedScripts(List.of(p2shScript));
+//            carol.kit.wallet().addWatchedScripts(List.of(p2shScript));
+//            david.kit.wallet().addWatchedScripts(List.of(p2shScript));
+
+
+            System.out.println(alice.kit.wallet().getBalance());
+
+            // Now we make the next node.
+            {
+                Transaction vtx1 = new Transaction(params);
+                // And yes we should always  do this
+                vtx1.setVersion(2);
+
+                TransactionInput ti1 = vtx1.addInput(findOutput(ctx, rs1));
+
+                // Sign it
+                {
+                    Sha256Hash sighash = vtx1.hashForSignature(0, rs1, Transaction.SigHash.ALL, false);
+                    TransactionSignature sigA = new TransactionSignature(keyA.sign(sighash), Transaction.SigHash.ALL, false);
+                    TransactionSignature sigB = new TransactionSignature(keyB.sign(sighash), Transaction.SigHash.ALL, false);
+                    TransactionSignature sigC = new TransactionSignature(keyC.sign(sighash), Transaction.SigHash.ALL, false);
+                    TransactionSignature sigD = new TransactionSignature(keyD.sign(sighash), Transaction.SigHash.ALL, false);
+                    TransactionSignature sigS = new TransactionSignature(keyS.sign(sighash), Transaction.SigHash.ALL, false);
+
+                    byte[] sigABin = sigA.encodeToBitcoin();
+                    byte[] sigBBin = sigB.encodeToBitcoin();
+                    byte[] sigCBin = sigC.encodeToBitcoin();
+                    byte[] sigDBin = sigD.encodeToBitcoin();
+                    byte[] sigSBin = sigS.encodeToBitcoin();
+
+//                    Script inputScript = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigABin, sigBBin, sigCBin, sigDBin}, sigSBin, rs1);
+//                    Script inputScript = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, rs1);
+                    Script inputScript = ArkScriptFactory.createVTXOLeafUnlockScript(sigABin, sigSBin, rs1);
+
+                    System.out.println(Base64.getEncoder().encodeToString(inputScript.getProgram()));
+
+                    ti1.setScriptSig(inputScript);
+                }
+
+                // Create the output and send in the hash of the script into that output.
+                vtx1.addOutput(Coin.valueOf(0, 80), alice.kit.wallet().freshReceiveAddress());
+
+                //                // Send it in
+                {
+                    Script outputScript = ScriptBuilder.createP2SHOutputScript(rs1);
+
+                    System.out.println(Base64.getEncoder().encodeToString(outputScript.getProgram()));
+                    System.out.println(Base64.getEncoder().encodeToString(vtx1.getInput(0).getScriptSig().getProgram()));
+
+                    vtx1.getInput(0).getScriptSig().correctlySpends(vtx1, 0, outputScript, Script.ALL_VERIFY_FLAGS);
+
+                    System.out.println(alice.kit.wallet().getBalance());
+                    // Send it out
+                    arkService.kit.peerGroup().broadcastTransaction(vtx1);
+
+                    // Mine
+                    Thread.sleep(5000);
+                    ltbc.mine(16);
+                    Thread.sleep(5000);
+                    System.out.println(alice.kit.wallet().getBalance());
+                    System.out.println("ZXOOL!");
+                }
+
+
+
+//                // Now we create the outputs
+//                // A + B + S | S + T=100
+//                Script rs1_1 = asf.createVTXONodeScript(List.of(keyA, keyB).stream().map(ECKey::getPubKey).toArray(byte[][]::new));
+//
+//                // This is a hash of the redeem-script
+//                Script p2shScript1_1 = ScriptBuilder.createP2SHOutputScript(rs1_1);
+//
+//                // Create the output and send in the hash of the script into that output.
+//                vtx1.addOutput(Coin.valueOf(2, 0), p2shScript1_1);
+//
+//                // C + D + S | S + T=100
+//                Script rs1_2 = asf.createVTXONodeScript(List.of(keyC, keyD).stream().map(ECKey::getPubKey).toArray(byte[][]::new));
+//
+//                // This is a hash of the redeem-script
+//                Script p2shScript1_2 = ScriptBuilder.createP2SHOutputScript(rs1_2);
+//
+//                // Create the output and send in the hash of the script into that output.
+//                vtx1.addOutput(Coin.valueOf(2, 0), p2shScript1_2);
+//
+//                // Now lets redeem the input
+//
+//                // Now let's complete and fund this transaction
+//                {
+////                    SendRequest sr = SendRequest.forTx(vtx1);
+////                    sr.feePerKb = Coin.valueOf(1000);
+////                    arkService.kit.wallet().completeTx(sr);
+//
+//                    // Send it out
+//                    arkService.kit.peerGroup().broadcastTransaction(vtx1);
+//
+//                    // Mine
+//                    Thread.sleep(5000);
+//                    ltbc.mine(16);
+//                    Thread.sleep(5000);
+//                }
+//
+//                Transaction vtx1_1 = new Transaction(params);
+//                vtx1_1.setVersion(2);
+//
+//                // Connect the input
+//                TransactionInput ti_1_1 = vtx1_1.addInput(findOutput(vtx1, rs1_1));
+//
+//                // Sign the input by everybody
+//                {
+//                    Sha256Hash sighash = vtx1_1.hashForSignature(0, rs1_1, Transaction.SigHash.ALL, true);
+//                    TransactionSignature sigA = new TransactionSignature(keyA.sign(sighash), Transaction.SigHash.ALL, true);
+//                    TransactionSignature sigB = new TransactionSignature(keyB.sign(sighash), Transaction.SigHash.ALL, true);
+//                    TransactionSignature sigS = new TransactionSignature(keyS.sign(sighash), Transaction.SigHash.ALL, true);
+//
+//                    byte[] sigABin = sigA.encodeToBitcoin();
+//                    byte[] sigBBin = sigB.encodeToBitcoin();
+//                    byte[] sigSBin = sigS.encodeToBitcoin();
+//
+//                    Script inputScript2 = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigABin, sigBBin}, sigSBin, rs1_1);
+//                    ti_1_1.setScriptSig(inputScript2);
+//                }
+//
+//                // Create the leafs
+//                // Now we create the outputs
+//                // A + S | A + dT=10
+//                Script rs1_1_1 = asf.createVTXOLeafScript(keyA.getPubKey());
+//
+//                // This is a hash of the redeem-script
+//                Script p2shScript1_1_1 = ScriptBuilder.createP2SHOutputScript(rs1_1_1);
+//
+//                // Create the output and send in the hash of the script into that output.
+//                vtx1_1.addOutput(Coin.valueOf(1, 0), p2shScript1_1_1);
+//
+//                // B + S | B + dT=10
+//                Script rs1_1_2 = asf.createVTXOLeafScript(keyB.getPubKey());
+//
+//                // This is a hash of the redeem-script
+//                Script p2shScript1_1_2 = ScriptBuilder.createP2SHOutputScript(rs1_1_2);
+//
+//                // Create the output and send in the hash of the script into that output.
+//                vtx1_1.addOutput(Coin.valueOf(1, 0), p2shScript1_1_2);
+//
+//                // Send it in
+//                {
+////                    SendRequest sr = SendRequest.forTx(vtx1_1);
+////                    sr.feePerKb = Coin.valueOf(1000);
+////                    arkService.kit.wallet().completeTx(sr);
+//
+//                    // Send it out
+//                    arkService.kit.peerGroup().broadcastTransaction(vtx1_1);
+//
+//                    // Mine
+//                    Thread.sleep(5000);
+//                    ltbc.mine(16);
+//                    Thread.sleep(5000);
+//                }
+//
+//                System.out.println(alice.kit.wallet().getBalance());
+//
+//                // Agreed exit for A
+//                Transaction vtx1_1_1 = new Transaction(params);
+//                vtx1_1_1.setVersion(2);
+//
+//                // Connect the input
+//                TransactionInput ti_1_1_1 = vtx1_1_1.addInput(vtx1_1.getOutput(0));
+//
+//                // Sign the input by everybody
+//                {
+//                    Sha256Hash sighash = vtx1_1_1.hashForSignature(0, rs1_1_1, Transaction.SigHash.ALL, true);
+//                    TransactionSignature sigA = new TransactionSignature(keyA.sign(sighash), Transaction.SigHash.ALL, true);
+//                    TransactionSignature sigS = new TransactionSignature(keyS.sign(sighash), Transaction.SigHash.ALL, true);
+//
+//                    byte[] sigABin = sigA.encodeToBitcoin();
+//                    byte[] sigSBin = sigS.encodeToBitcoin();
+//
+//                    ti_1_1_1.setScriptSig(ArkScriptFactory.createVTXOLeafUnlockScript(sigABin, sigSBin, rs1_1_1));
+//                }
+//
+//                // Let's make an on-chain charity output
+//
+//                // Create the output and send in the hash of the script into that output.
+//                vtx1_1_1.addOutput(Coin.valueOf(0, 80), alice.kit.wallet().freshReceiveAddress());
+//
+//
+//                // Send it in
+//                {
+////                    SendRequest sr = SendRequest.forTx(vtx1_1_1);
+////                    sr.feePerKb = Coin.valueOf(1000);
+////                    arkService.kit.wallet().completeTx(sr);
+//
+//                    // Send it out
+//                    arkService.kit.peerGroup().broadcastTransaction(vtx1_1_1);
+//
+//                    // Mine
+//                    Thread.sleep(5000);
+//                    ltbc.mine(16);
+//                    Thread.sleep(5000);
+//                }
+
+                System.out.println(alice.kit.wallet().getBalance());
+            }
+        }
+
+
+        Script redeemScript = ArkScriptFactory.createVTXOLeaf(keyA, keyS, timeLockBlocks);
+        Script p2shScript = ScriptBuilder.createP2SHOutputScript(redeemScript);
+
+        Transaction txOut = new Transaction(params);
+        TransactionOutput output = txOut.addOutput(Coin.valueOf(1, 0), p2shScript);
+
+        SendRequest sr = SendRequest.forTx(txOut);
+        sr.feePerKb = Coin.valueOf(1000);
+        arkService.kit.wallet().completeTx(sr);
+
+        arkService.kit.wallet().addWatchedScripts(List.of(p2shScript));
+        alice.kit.wallet().addWatchedScripts(List.of(p2shScript));
+
+        arkService.kit.peerGroup().broadcastTransaction(sr.tx);
+
+        Thread.sleep(5000);
+        ltbc.mine(16);
+        Thread.sleep(5000);
+
+        TransactionOutput to = arkService.kit.wallet().getWatchedOutputs(false).stream()
+                .filter(transactionOutput -> transactionOutput.getScriptPubKey().equals(p2shScript))
+                .findFirst()
+                .orElseThrow();
+
+//        arkService.kit.wallet().getWatchedScripts().forEach(script -> {
+//            System.out.println(script.equals(p2shScript));
+//        });
+
+//        TransactionOutput to = arkService.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getScriptPubKey().equals(p2shScript)).findFirst().orElseThrow();
+
+        System.out.println(alice.kit.wallet().getBalance());
+
+        Transaction tx = new Transaction(params);
+
+        // This enables lockTime ie blockHeight lock
+//        tx.setLockTime(10);
+
+        // And yes we should always  do this
+        tx.setVersion(2);
+        tx.addInput(to.getOutPointFor().getConnectedOutput()); // OutPoint from the UTXO (txHash + outputIndex)
+
+        // This also enables lockTime ie relative timeLock
+//        tx.getInput(0).setSequenceNumber(10);
+
+        Address recipientAddress = arkService.kit.wallet().freshReceiveAddress();
+        tx.addOutput(Coin.valueOf(50_000), recipientAddress);
+        tx.addOutput(Coin.valueOf(99_900_666), alice.kit.wallet().freshReceiveAddress());
+
+        Sha256Hash sighash = tx.hashForSignature(0, redeemScript, Transaction.SigHash.ALL, false);
+        TransactionSignature sigA = new TransactionSignature(keyA.sign(sighash), Transaction.SigHash.ALL, false);
+        TransactionSignature sigS = new TransactionSignature(keyS.sign(sighash), Transaction.SigHash.ALL, false);
+
+        byte[] sigABin = sigA.encodeToBitcoin();
+        byte[] sigSBin = sigS.encodeToBitcoin();
+
+//        Script inputScript = ArkScriptFactory.createVTXOUnilateralUnlock(sigABin, redeemScript);
+//        Script inputScript = ArkScriptFactory.createVTXOUnlock(sigA, sigS, redeemScript);
+        Script inputScript = ArkScriptFactory.createVTXOLeafUnlockScript(sigABin, sigSBin, redeemScript);
+        tx.getInput(0).setScriptSig(inputScript);
+
+        Script outputScript = ScriptBuilder.createP2SHOutputScript(redeemScript);
+        tx.getInput(0).getScriptSig().correctlySpends(tx, 0, outputScript, Script.ALL_VERIFY_FLAGS);
+        arkService.kit.peerGroup().broadcastTransaction(tx);
+        // Broadcast it
+
+        System.out.println(tx);
+
+        ltbc.mine(6);
+        Thread.sleep(5000);
+
+        System.out.println(alice.kit.wallet().getBalance());
+
+        Assertions.assertEquals(199900666, alice.kit.wallet().getBalance().value);
+
+//        var aliceIdentity = Identity.generateRandomIdentity();
+//        var eveIdentity = Identity.generateRandomIdentity();
+
+        /**
+         *  Step 1: Eve creates a quotation
+         */
+
+        ObjectMapper om = new ObjectMapper();
+        TestNostr.ArkQuotationContent aqc = new TestNostr.ArkQuotationContent();
+
+        aqc.amount = 30000;
+        aqc.pubkey = "WHATEVER";
+        aqc.arks.includeOnly = true;
+        aqc.arks.include = new String[]{"myarc"};
+        aqc.offer.setCurrencyCode(Currency.getInstance("USD").getCurrencyCode());
+        aqc.offer.items = new TestNostr.ArkOfferItems[]{
+                new TestNostr.ArkOfferItems("Pepperoni", 1, 3.0)
+        };
+        aqc.offer.vat = "5%";
+
+        String offer = om.writeValueAsString(aqc);
+        System.out.println(offer);
+
+        TestNostr.NIP0666<TestNostr.NIP0666ArkQuotationEvent> nip0666Stack = new TestNostr.NIP0666<>();
+        nip0666Stack.setSender(eve.identity);
+        nip0666Stack.setRelays(RELAYS);
+        TestNostr.NIP0666ArkQuotationEventFactory xy = new TestNostr.NIP0666ArkQuotationEventFactory(eve.identity, offer);
+        nip0666Stack.setEvent(xy.create());
+        nip0666Stack.signAndSend();
+
+        /**
+         *  Step 2: Alice scans the bitcoin URL and fetches the offer
+         */
+
+        String id = nip0666Stack.getEvent().getId();
+
+        TestNostr.NIP0666<TestNostr.NIP0666ArkQuotationEvent> aliceNip0666Stack = new TestNostr.NIP0666<>();
+        aliceNip0666Stack.setRelays(RELAYS);
+        aliceNip0666Stack.setSender(alice.identity);
+        GenericEvent ge = new GenericEvent();
+        ge.setId(id);
+        Filters filters2 = Filters.builder().events(List.of(ge)).kinds(List.of(Kind.ARK_QUOTATION)).build();
+        String subId2 = "sub_" + alice.identity.getPublicKey();
+
+        BlockingQueue<GenericEvent> queue = new ArrayBlockingQueue<>(1);
+
+        EventCustomHandler2.handlers.put(subId2, (event, message, relay) -> {
+            queue.add((GenericEvent) event);
+        });
+
+        aliceNip0666Stack.send(filters2, subId2);
+
+        GenericEvent take = queue.take();
+        System.out.println(take);
+
+
+        System.out.println("THE END!");
+
+        /*
+         *  Scenario 1
+         *
+         *  Alice, Bob, Carol, Dave have 1 BTC each in an ARK managed by arkService.
+         *
+         *  Alice then sends 0.5 BTC to Eve, and Freddy joins the group with 1 BTC. And finally Clare decide she wants to leave with 0.3 BTC.
+         *
+         *  A new round is created by arkService.
+         *
+         *  First arkService proposes a new foundation tree.
+         *
+         *  All parties are then proposes to sign, and fund the nodes in the tree from there current VTXO:s exit transaction.
+         *
+         *  The makes the root of the round tree valid.
+         *
+         *  In the second stage tha participants are asked to sign the root nodes of the current round.
+         *
+         *  Once this is done arkService deposits the tree transition node to the blockchain.
+         *
+         *  Noster based communication
+         *
+         *  Eve sends a payment request using a bitcoin uri
+         *
+         *  bitcoin://#bitcoinaddress#?amount=0.01&lightning=#lightninginvoice#&ark=#npub#
+         *
+         *  payment request  {
+         *      amount: #######
+         *      arks: {
+         *          include: [ ark1_npub, ark2_npub ]
+         *          exclude: [ ark2_npub, ark3_npub ]
+         *          will_reject_not_included: true
+         *      }
+         *      recite {
+         *          #description of goods your are paying for#
+         *      }
+         *  }
+         *
+         *  payment_offer {
+         *      amount: #######
+         *      ark: ark2_npub
+         *  }
+         *
+         *  payment_accept {
+         *      transaction_key: XXXXXXX
+         *  }
+         *
+         *  payment_recit {
+         *      vtxo: [ #transactions# ]
+         *  }
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         *
+         */
+
+
+    }
+}

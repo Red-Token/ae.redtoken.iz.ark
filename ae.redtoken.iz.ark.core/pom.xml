@@ -1,0 +1,100 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>ae.redtoken.iz</groupId>
+        <artifactId>ae.redtoken.iz.keyvault</artifactId>
+        <version>0.0.2</version>
+    </parent>
+
+    <artifactId>ae.redtoken.iz.ark.core</artifactId>
+    <packaging>jar</packaging>
+
+    <name>ae.redtoken.iz.ark.core</name>
+    <url>http://maven.apache.org</url>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- https://mvnrepository.com/artifact/org.bitcoinj/bitcoinj-core -->
+<!--        <dependency>-->
+<!--            <groupId>org.bitcoinj</groupId>-->
+<!--            <artifactId>bitcoinj-core</artifactId>-->
+<!--            <version>0.17</version>-->
+<!--        </dependency>-->
+        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk18on -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.80</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcpg-jdk18on -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpg-jdk18on</artifactId>
+            <version>1.80</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcpkix-jdk18on -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>1.80</version>
+        </dependency>
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>4.7.4</version>
+        </dependency>
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>nostr-java-base</artifactId>
+            <version>0.6.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>nostr-java-id</artifactId>
+            <version>0.6.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>nostr-java-util</artifactId>
+            <version>0.6.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>nostr-java-api</artifactId>
+            <version>0.6.2.1</version>
+        </dependency>
+        <!-- Logback (SLF4J implementation) -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.16</version> <!-- Use the latest version -->
+        </dependency>
+        <dependency>
+            <groupId>org.bitcoin</groupId>
+            <artifactId>org.bitcoin.tfw.ltbc.client</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>ae.redtoken.iz</groupId>-->
+<!--            <artifactId>ae.redtoken.iz.keyvault.core</artifactId>-->
+<!--            <version>0.0.2</version>-->
+<!--            <scope>compile</scope>-->
+<!--        </dependency>-->
+    </dependencies>
+</project>
