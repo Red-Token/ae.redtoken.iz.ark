@@ -56,9 +56,40 @@ public class AppTest extends LTBCMainTestCase {
             this.activeKey = this.kit.wallet().freshReceiveKey();
         }
 
+
+        byte[] signInput(NetworkParameters parameters, byte[] transaction, byte[] program) {
+            Transaction tx = new Transaction(parameters, transaction);
+            return sign(tx.hashForSignature(0, program, Transaction.SigHash.ALL, true).getBytes());
+        }
+
         byte[] sign(byte[] hash) {
             return new TransactionSignature(activeKey.sign(Sha256Hash.wrap(hash)), Transaction.SigHash.ALL, true).encodeToBitcoin();
         }
+
+        void signSpendingInput(TransactionInput input) {
+            ECKey key = this.kit.wallet().findKeyFromPubKeyHash(Objects.requireNonNull(input.getConnectedOutput()).getScriptPubKey().getPubKeyHash(), Script.ScriptType.P2PKH);
+
+            // 2. The P2PKH scriptPubKey (the one you're spending from)
+            Script scriptPubKey = ScriptBuilder.createP2PKHOutputScript(Objects.requireNonNull(key));
+
+            // 3. Sign the input
+            int inputIndex = input.getIndex();  // adjust if needed
+            Transaction.SigHash sigHash = Transaction.SigHash.ALL;
+            boolean anyoneCanPay = true;
+
+            // 4. Create the hash for signature
+            Sha256Hash sigHashBytes = Objects.requireNonNull(input.getParentTransaction()).hashForSignature(inputIndex, scriptPubKey, sigHash, anyoneCanPay);
+
+            // 5. Create the ECDSA signature
+            ECKey.ECDSASignature signature = key.sign(sigHashBytes);
+            TransactionSignature txSig = new TransactionSignature(signature, sigHash, anyoneCanPay);
+
+            // 6. Create scriptSig (the unlocking script)
+            Script inputScript = ScriptBuilder.createInputScript(txSig, key);
+
+            input.setScriptSig(inputScript);
+        }
+
 
         public byte[] getActivePublicKey() {
             return activeKey.getPubKey();
@@ -219,6 +250,8 @@ public class AppTest extends LTBCMainTestCase {
 
             // Now we make the next node.
             {
+                // On the ArkService side
+
                 Transaction vtx1 = new Transaction(params);
                 // And yes we should always  do this
                 vtx1.setVersion(2);
@@ -235,33 +268,33 @@ public class AppTest extends LTBCMainTestCase {
                 // A + B + S | S + T=100
                 Script rs1_1 = asf.createVTXONodeScript(List.of(alice, bob).stream().map(Actor::getActivePublicKey).toArray(byte[][]::new));
 
-                // This is a hash of the redeem-script
-                Script p2shScript1_1 = ScriptBuilder.createP2SHOutputScript(rs1_1);
-
                 // Create the output and send in the hash of the script into that output.
-                vtx1.addOutput(Coin.valueOf(2, 0), p2shScript1_1);
+                vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2SHOutputScript(rs1_1));
 
                 // C + D + S | S + T=100
                 Script rs1_2 = asf.createVTXONodeScript(List.of(carol, david).stream().map(Actor::getActivePublicKey).toArray(byte[][]::new));
 
-                // This is a hash of the redeem-script
-                Script p2shScript1_2 = ScriptBuilder.createP2SHOutputScript(rs1_2);
-
                 // Create the output and send in the hash of the script into that output.
-                vtx1.addOutput(Coin.valueOf(2, 0), p2shScript1_2);
+                vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2SHOutputScript(rs1_2));
 
                 //                TransactionInput ti1 = vtx1.addInput(to.getOutPointFor().getConnectedOutput());
                 TransactionInput ti1 = vtx1.addInput(findOutput(ctx, rs1));
+                fund(vtx1, arkService);
 
                 // Sign it
                 {
-                    byte[] sighash = vtx1.hashForSignature(0, rs1, Transaction.SigHash.ALL, true).getBytes();
+//                    byte[] sighash = vtx1.hashForSignature(0, rs1.getProgram(), Transaction.SigHash.ALL, true).getBytes();
 
-                    byte[] sigABin = alice.sign(sighash);
-                    byte[] sigBBin = bob.sign(sighash);
-                    byte[] sigCBin = carol.sign(sighash);
-                    byte[] sigDBin = david.sign(sighash);
-                    byte[] sigSBin = arkService.sign(sighash);
+                    byte[] tx = vtx1.bitcoinSerialize();
+                    byte[] program = rs1.getProgram();
+
+//                    byte[] sigABin = alice.sign(sighash);
+                    byte[] sigABin = alice.signInput(params, tx, program);
+                    byte[] sigBBin = bob.signInput(params, tx, program);
+                    byte[] sigCBin = carol.signInput(params, tx, program);
+                    byte[] sigDBin = david.signInput(params, tx, program);
+
+                    byte[] sigSBin = arkService.signInput(params, tx, program);
 
                     // TODO Note we have to add the signatures in reverse order FIX THIS
                     Script inputScript = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, rs1);
@@ -269,7 +302,6 @@ public class AppTest extends LTBCMainTestCase {
                 }
 
 //                // Send it in
-                fund(vtx1, arkService);
 //                send(vtx1, arkService, rs1, alice);
 //                fundAndSend(vtx1, arkService, rs1, alice);
 
@@ -300,20 +332,45 @@ public class AppTest extends LTBCMainTestCase {
                 // Connect the input
                 TransactionInput ti_1_1 = vtx1_1.addInput(findOutput(vtx1, rs1_1));
 
+                // Fund the transaction
+                fund(vtx1_1, arkService);
+
+//                // Sign it
+//                {
+////                    byte[] sighash = vtx1.hashForSignature(0, rs1.getProgram(), Transaction.SigHash.ALL, true).getBytes();
+//
+//                    byte[] tx = vtx1.bitcoinSerialize();
+//                    byte[] program = rs1.getProgram();
+//
+////                    byte[] sigABin = alice.sign(sighash);
+//                    byte[] sigABin = alice.signInput(params, tx, program);
+//                    byte[] sigBBin = bob.signInput(params, tx, program);
+//                    byte[] sigCBin = carol.signInput(params, tx, program);
+//                    byte[] sigDBin = david.signInput(params, tx, program);
+//
+//                    byte[] sigSBin = arkService.signInput(params, tx, program);
+//
+//                    // TODO Note we have to add the signatures in reverse order FIX THIS
+//                    Script inputScript = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, rs1);
+//                    ti1.setScriptSig(inputScript);
+//                }
+
                 // Sign the input by everybody
                 {
-                    byte[] sighash = vtx1_1.hashForSignature(0, rs1_1, Transaction.SigHash.ALL, true).getBytes();
+                    byte[] tx = vtx1_1.bitcoinSerialize();
+                    byte[] program = rs1_1.getProgram();
 
-                    byte[] sigABin = alice.sign(sighash);
-                    byte[] sigBBin = bob.sign(sighash);
-                    byte[] sigSBin = arkService.sign(sighash);
+//                    byte[] sighash = vtx1_1.hashForSignature(0, rs1_1, Transaction.SigHash.ALL, true).getBytes();
+
+                    byte[] sigABin = alice.signInput(params, tx, program);
+                    byte[] sigBBin = bob.signInput(params, tx, program);
+                    byte[] sigSBin = arkService.signInput(params, tx, program);
 
 //                    Script inputScript2 = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigABin, sigBBin}, sigSBin, rs1_1);
                     Script inputScript2 = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigBBin, sigABin}, sigSBin, rs1_1);
                     ti_1_1.setScriptSig(inputScript2);
                 }
 //
-                fund(vtx1_1, arkService);
 
 //
 //                // Send it in
@@ -336,6 +393,9 @@ public class AppTest extends LTBCMainTestCase {
 ////
 //                System.out.println(alice.kit.wallet().getBalance());
 //
+
+                // Create a Unilateral exit
+
                 // Agreed exit for A
                 Transaction vtx1_1_1 = new Transaction(params);
                 vtx1_1_1.setVersion(2);
@@ -346,6 +406,7 @@ public class AppTest extends LTBCMainTestCase {
                 // Connect the input
                 TransactionInput ti_1_1_1 = vtx1_1_1.addInput(findOutput(vtx1_1, rs1_1_1));
 
+                fund(vtx1_1_1, arkService);
                 // Sign the input by everybody
                 {
                     byte[] sighash = vtx1_1_1.hashForSignature(0, rs1_1_1, Transaction.SigHash.ALL, true).getBytes();
@@ -359,7 +420,6 @@ public class AppTest extends LTBCMainTestCase {
                 // Let's make an on-chain charity output
 //                fundAndSend(vtx1, arkService, rs1, alice);
 //                fundAndSend(vtx1_1, arkService, rs1_1, alice);
-                fund(vtx1_1_1, arkService);
 
                 send(vtx1, arkService, rs1, alice);
                 send(vtx1_1, arkService, rs1_1, alice);
@@ -598,10 +658,34 @@ public class AppTest extends LTBCMainTestCase {
         TransactionInput fti1 = tx.addInput(output);
         output.markAsSpent(fti1);
 
+        arkService.signSpendingInput(fti1);
+//
+//        ECKey key = arkService.kit.wallet().findKeyFromPubKeyHash(output.getScriptPubKey().getPubKeyHash(), Script.ScriptType.P2PKH);
+//
+//        // 2. The P2PKH scriptPubKey (the one you're spending from)
+//        Script scriptPubKey = ScriptBuilder.createP2PKHOutputScript(key);
+//
+//        // 3. Sign the input
+//        int inputIndex = fti1.getIndex();  // adjust if needed
+//        Transaction.SigHash sigHash = Transaction.SigHash.ALL;
+//        boolean anyoneCanPay = true;
+//
+//        // 4. Create the hash for signature
+//        Sha256Hash sigHashBytes = tx.hashForSignature(inputIndex, scriptPubKey, sigHash, anyoneCanPay);
+//
+//        // 5. Create the ECDSA signature
+//        ECKey.ECDSASignature signature = key.sign(sigHashBytes);
+//        TransactionSignature txSig = new TransactionSignature(signature, sigHash, anyoneCanPay);
+//
+//        // 6. Create scriptSig (the unlocking script)
+//        Script inputScript = ScriptBuilder.createInputScript(txSig, key);
+//
+//        fti1.setScriptSig(inputScript);
+
         // Sign the funding input
-        SendRequest sr = SendRequest.forTx(tx);
-        sr.ensureMinRequiredFee = false;
-        arkService.kit.wallet().signTransaction(sr);
+//        SendRequest sr = SendRequest.forTx(tx);
+//        sr.ensureMinRequiredFee = false;
+//        arkService.kit.wallet().signTransaction(sr);
     }
 
     private void send(Transaction tx, Actor arkService, Script rs, ArkUser alice) throws InterruptedException {
