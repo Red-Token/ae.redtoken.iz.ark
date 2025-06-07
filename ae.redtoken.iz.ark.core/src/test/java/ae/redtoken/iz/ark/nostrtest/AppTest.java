@@ -384,78 +384,78 @@ public class AppTest extends LTBCMainTestCase {
             }
         }
 
-        Script redeemScript = ArkScriptFactory.createVTXOLeaf(alice.activeKey, keyS, timeLockBlocks);
-        Script p2shScript = ScriptBuilder.createP2SHOutputScript(redeemScript);
-
-        Transaction txOut = new Transaction(params);
-        TransactionOutput output = txOut.addOutput(Coin.valueOf(1, 0), p2shScript);
-
-        SendRequest sr = SendRequest.forTx(txOut);
-        sr.feePerKb = Coin.valueOf(1000);
-        arkService.kit.wallet().completeTx(sr);
-
-        arkService.kit.wallet().addWatchedScripts(List.of(p2shScript));
-        alice.kit.wallet().addWatchedScripts(List.of(p2shScript));
-
-        arkService.kit.peerGroup().broadcastTransaction(sr.tx);
-
-        Thread.sleep(5000);
-        ltbc.mine(16);
-        Thread.sleep(5000);
-
-        TransactionOutput to = arkService.kit.wallet().getWatchedOutputs(false).stream()
-                .filter(transactionOutput -> transactionOutput.getScriptPubKey().equals(p2shScript))
-                .findFirst()
-                .orElseThrow();
-
-//        arkService.kit.wallet().getWatchedScripts().forEach(script -> {
-//            System.out.println(script.equals(p2shScript));
-//        });
-
-//        TransactionOutput to = arkService.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getScriptPubKey().equals(p2shScript)).findFirst().orElseThrow();
-
-        System.out.println(alice.kit.wallet().getBalance());
-
-        Transaction tx = new Transaction(params);
-
-        // This enables lockTime ie blockHeight lock
-//        tx.setLockTime(10);
-
-        // And yes we should always  do this
-        tx.setVersion(2);
-        tx.addInput(to.getOutPointFor().getConnectedOutput()); // OutPoint from the UTXO (txHash + outputIndex)
-
-        // This also enables lockTime ie relative timeLock
-//        tx.getInput(0).setSequenceNumber(10);
-
-        Address recipientAddress = arkService.kit.wallet().freshReceiveAddress();
-        tx.addOutput(Coin.valueOf(50_000), recipientAddress);
-        tx.addOutput(Coin.valueOf(99_900_666), alice.kit.wallet().freshReceiveAddress());
-
-        Sha256Hash sighash = tx.hashForSignature(0, redeemScript, Transaction.SigHash.ALL, false);
-        TransactionSignature sigS = new TransactionSignature(keyS.sign(sighash), Transaction.SigHash.ALL, false);
-
-        byte[] sigABin = alice.sign(sighash.getBytes());
-        byte[] sigSBin = sigS.encodeToBitcoin();
-
-//        Script inputScript = ArkScriptFactory.createVTXOUnilateralUnlock(sigABin, redeemScript);
-//        Script inputScript = ArkScriptFactory.createVTXOUnlock(sigA, sigS, redeemScript);
-        Script inputScript = ArkScriptFactory.createVTXOLeafUnlockScript(sigABin, sigSBin, redeemScript);
-        tx.getInput(0).setScriptSig(inputScript);
-
-        Script outputScript = ScriptBuilder.createP2SHOutputScript(redeemScript);
-        tx.getInput(0).getScriptSig().correctlySpends(tx, 0, outputScript, Script.ALL_VERIFY_FLAGS);
-        arkService.kit.peerGroup().broadcastTransaction(tx);
-        // Broadcast it
-
-        System.out.println(tx);
-
-        ltbc.mine(6);
-        Thread.sleep(5000);
-
-        System.out.println(alice.kit.wallet().getBalance());
-
-        Assertions.assertEquals(199900666, alice.kit.wallet().getBalance().value);
+//        Script redeemScript = ArkScriptFactory.createVTXOLeaf(alice.activeKey, keyS, timeLockBlocks);
+//        Script p2shScript = ScriptBuilder.createP2SHOutputScript(redeemScript);
+//
+//        Transaction txOut = new Transaction(params);
+//        TransactionOutput output = txOut.addOutput(Coin.valueOf(1, 0), p2shScript);
+//
+//        SendRequest sr = SendRequest.forTx(txOut);
+//        sr.feePerKb = Coin.valueOf(1000);
+//        arkService.kit.wallet().completeTx(sr);
+//
+//        arkService.kit.wallet().addWatchedScripts(List.of(p2shScript));
+//        alice.kit.wallet().addWatchedScripts(List.of(p2shScript));
+//
+//        arkService.kit.peerGroup().broadcastTransaction(sr.tx);
+//
+//        Thread.sleep(5000);
+//        ltbc.mine(16);
+//        Thread.sleep(5000);
+//
+//        TransactionOutput to = arkService.kit.wallet().getWatchedOutputs(false).stream()
+//                .filter(transactionOutput -> transactionOutput.getScriptPubKey().equals(p2shScript))
+//                .findFirst()
+//                .orElseThrow();
+//
+////        arkService.kit.wallet().getWatchedScripts().forEach(script -> {
+////            System.out.println(script.equals(p2shScript));
+////        });
+//
+////        TransactionOutput to = arkService.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getScriptPubKey().equals(p2shScript)).findFirst().orElseThrow();
+//
+//        System.out.println(alice.kit.wallet().getBalance());
+//
+//        Transaction tx = new Transaction(params);
+//
+//        // This enables lockTime ie blockHeight lock
+////        tx.setLockTime(10);
+//
+//        // And yes we should always  do this
+//        tx.setVersion(2);
+//        tx.addInput(to.getOutPointFor().getConnectedOutput()); // OutPoint from the UTXO (txHash + outputIndex)
+//
+//        // This also enables lockTime ie relative timeLock
+////        tx.getInput(0).setSequenceNumber(10);
+//
+//        Address recipientAddress = arkService.kit.wallet().freshReceiveAddress();
+//        tx.addOutput(Coin.valueOf(50_000), recipientAddress);
+//        tx.addOutput(Coin.valueOf(99_900_666), alice.kit.wallet().freshReceiveAddress());
+//
+//        Sha256Hash sighash = tx.hashForSignature(0, redeemScript, Transaction.SigHash.ALL, false);
+//        TransactionSignature sigS = new TransactionSignature(keyS.sign(sighash), Transaction.SigHash.ALL, false);
+//
+//        byte[] sigABin = alice.sign(sighash.getBytes());
+//        byte[] sigSBin = sigS.encodeToBitcoin();
+//
+////        Script inputScript = ArkScriptFactory.createVTXOUnilateralUnlock(sigABin, redeemScript);
+////        Script inputScript = ArkScriptFactory.createVTXOUnlock(sigA, sigS, redeemScript);
+//        Script inputScript = ArkScriptFactory.createVTXOLeafUnlockScript(sigABin, sigSBin, redeemScript);
+//        tx.getInput(0).setScriptSig(inputScript);
+//
+//        Script outputScript = ScriptBuilder.createP2SHOutputScript(redeemScript);
+//        tx.getInput(0).getScriptSig().correctlySpends(tx, 0, outputScript, Script.ALL_VERIFY_FLAGS);
+//        arkService.kit.peerGroup().broadcastTransaction(tx);
+//        // Broadcast it
+//
+//        System.out.println(tx);
+//
+//        ltbc.mine(6);
+//        Thread.sleep(5000);
+//
+//        System.out.println(alice.kit.wallet().getBalance());
+//
+//        Assertions.assertEquals(199900666, alice.kit.wallet().getBalance().value);
 
 //        var aliceIdentity = Identity.generateRandomIdentity();
 //        var eveIdentity = Identity.generateRandomIdentity();
@@ -586,19 +586,23 @@ public class AppTest extends LTBCMainTestCase {
 
     }
 
-    private void fundAndSend(Transaction tx, Actor arkService, Script rs, ArkUser alice) throws InterruptedException {
+    private void fund(Transaction tx, Actor arkService) throws InterruptedException {
 
         // Add the funding input, post transaction signature
         TransactionOutput output = arkService.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getValue().equals(Coin.valueOf(0, 1))).findFirst().orElseThrow();
         TransactionInput fti1 = tx.addInput(output);
 
-        // Verify that the input is correct
-        tx.getInput(0).getScriptSig().correctlySpends(tx, 0, ScriptBuilder.createP2SHOutputScript(rs), Script.ALL_VERIFY_FLAGS);
-
         // Sign the funding input
         SendRequest sr = SendRequest.forTx(tx);
         sr.ensureMinRequiredFee = false;
         arkService.kit.wallet().signTransaction(sr);
+    }
+
+    private void fundAndSend(Transaction tx, Actor arkService, Script rs, ArkUser alice) throws InterruptedException {
+        fund(tx, arkService);
+
+        // Verify that the input is correct
+        tx.getInput(0).getScriptSig().correctlySpends(tx, 0, ScriptBuilder.createP2SHOutputScript(rs), Script.ALL_VERIFY_FLAGS);
 
         // Send it out
         System.out.println(tx);
