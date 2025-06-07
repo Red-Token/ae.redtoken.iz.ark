@@ -19,9 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.Currency;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -80,7 +78,6 @@ public class AppTest extends LTBCMainTestCase {
     }
 
     static class ArkUser extends Actor {
-
 
 
         ArkUser(AbstractBitcoinNetParams params) {
@@ -272,7 +269,9 @@ public class AppTest extends LTBCMainTestCase {
                 }
 
 //                // Send it in
-                fundAndSend(vtx1, arkService, rs1, alice);
+                fund(vtx1, arkService);
+//                send(vtx1, arkService, rs1, alice);
+//                fundAndSend(vtx1, arkService, rs1, alice);
 
                 // Create the next step
                 Transaction vtx1_1 = new Transaction(params);
@@ -314,7 +313,8 @@ public class AppTest extends LTBCMainTestCase {
                     ti_1_1.setScriptSig(inputScript2);
                 }
 //
-                fundAndSend(vtx1_1, arkService, rs1_1, alice);
+                fund(vtx1_1, arkService);
+
 //
 //                // Send it in
 //                {
@@ -348,10 +348,10 @@ public class AppTest extends LTBCMainTestCase {
 
                 // Sign the input by everybody
                 {
-                    Sha256Hash sighash = vtx1_1_1.hashForSignature(0, rs1_1_1, Transaction.SigHash.ALL, true);
+                    byte[] sighash = vtx1_1_1.hashForSignature(0, rs1_1_1, Transaction.SigHash.ALL, true).getBytes();
 
-                    byte[] sigABin = alice.sign(sighash.getBytes());
-                    byte[] sigSBin = arkService.sign(sighash.getBytes());
+                    byte[] sigABin = alice.sign(sighash);
+                    byte[] sigSBin = arkService.sign(sighash);
 
                     ti_1_1_1.setScriptSig(ArkScriptFactory.createVTXOLeafUnlockScript(sigABin, sigSBin, rs1_1_1));
                 }
@@ -359,7 +359,11 @@ public class AppTest extends LTBCMainTestCase {
                 // Let's make an on-chain charity output
 //                fundAndSend(vtx1, arkService, rs1, alice);
 //                fundAndSend(vtx1_1, arkService, rs1_1, alice);
-                fundAndSend(vtx1_1_1, arkService, rs1_1_1, alice);
+                fund(vtx1_1_1, arkService);
+
+                send(vtx1, arkService, rs1, alice);
+                send(vtx1_1, arkService, rs1_1, alice);
+                send(vtx1_1_1, arkService, rs1_1_1, alice);
 //
 //                // Send it in
 //                {
@@ -587,10 +591,12 @@ public class AppTest extends LTBCMainTestCase {
     }
 
     private void fund(Transaction tx, Actor arkService) throws InterruptedException {
+        System.out.println("To be spent: " + arkService.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getValue().equals(Coin.valueOf(0, 1))).count());
 
         // Add the funding input, post transaction signature
-        TransactionOutput output = arkService.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getValue().equals(Coin.valueOf(0, 1))).findFirst().orElseThrow();
+        TransactionOutput output = arkService.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getValue().equals(Coin.valueOf(0, 1)) && transactionOutput.isAvailableForSpending()).findFirst().orElseThrow();
         TransactionInput fti1 = tx.addInput(output);
+        output.markAsSpent(fti1);
 
         // Sign the funding input
         SendRequest sr = SendRequest.forTx(tx);
@@ -598,8 +604,8 @@ public class AppTest extends LTBCMainTestCase {
         arkService.kit.wallet().signTransaction(sr);
     }
 
-    private void fundAndSend(Transaction tx, Actor arkService, Script rs, ArkUser alice) throws InterruptedException {
-        fund(tx, arkService);
+    private void send(Transaction tx, Actor arkService, Script rs, ArkUser alice) throws InterruptedException {
+//        fund(tx, arkService);
 
         // Verify that the input is correct
         tx.getInput(0).getScriptSig().correctlySpends(tx, 0, ScriptBuilder.createP2SHOutputScript(rs), Script.ALL_VERIFY_FLAGS);
