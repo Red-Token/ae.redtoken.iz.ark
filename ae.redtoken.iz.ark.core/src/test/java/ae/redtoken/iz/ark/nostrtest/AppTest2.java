@@ -225,57 +225,22 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Create the leafs
                 // Now we create the outputs
                 // A + S | A + dT=10
-//                Script rs1_1_1 = asf.createVTXOLeafScript(alice.getActivePublicKey());
                 byte[] rs1_1_1 = asf.createVTXOLeafScript(alice.getActivePublicKey()).getProgram();
-//                byte[] lockScriptByteCode = asf.createVTXOLeafScript(alice.getActivePublicKey()).getProgram();
-
-
-
-                // This is a hash of the redeem-script
-//                Script p2shScript1_1_1 = ScriptBuilder.createP2SHOutputScript(rs1_1_1);
-                Script p2wshScript1_1_1 = ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1_1));
-
 
                 // Create the output and send in the hash of the script into that output.
-                vtx1_1.addOutput(Coin.valueOf(1, 0), p2wshScript1_1_1);
-                // TODO: not a carbon copy
-//                TransactionOutput output = t.addOutput(Coin.valueOf(0, 90), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(lockScriptByteCode)));
-
+                vtx1_1.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1_1)));
 
                 // B + S | B + dT=10
-                Script rs1_1_2 = asf.createVTXOLeafScript(bob.getActivePublicKey());
-
-                // This is a hash of the redeem-script
-                Script p2shScript1_1_2 = ScriptBuilder.createP2SHOutputScript(rs1_1_2);
+                byte[] rs1_1_2 = asf.createVTXOLeafScript(bob.getActivePublicKey()).getProgram();
 
                 // Create the output and send in the hash of the script into that output.
-                vtx1_1.addOutput(Coin.valueOf(1, 0), p2shScript1_1_2);
+                vtx1_1.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1_2)));
 
                 // Connect the input
                 TransactionInput ti_1_1 = vtx1_1.addInput(findOutput(vtx1, rs1_1));
 
                 // Fund the transaction
                 fund(vtx1_1, arkService);
-
-//                // Sign it
-//                {
-////                    byte[] sighash = vtx1.hashForSignature(0, rs1.getProgram(), Transaction.SigHash.ALL, true).getBytes();
-//
-//                    byte[] tx = vtx1.bitcoinSerialize();
-//                    byte[] program = rs1.getProgram();
-//
-////                    byte[] sigABin = alice.sign(sighash);
-//                    byte[] sigABin = alice.signInput(params, tx, program);
-//                    byte[] sigBBin = bob.signInput(params, tx, program);
-//                    byte[] sigCBin = carol.signInput(params, tx, program);
-//                    byte[] sigDBin = david.signInput(params, tx, program);
-//
-//                    byte[] sigSBin = arkService.signInput(params, tx, program);
-//
-//                    // TODO Note we have to add the signatures in reverse order FIX THIS
-//                    Script inputScript = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, rs1);
-//                    ti1.setScriptSig(inputScript);
-//                }
 
                 // Sign the input by everybody
                 {
@@ -292,32 +257,8 @@ public class AppTest2 extends LTBCMainTestCase {
                     Script inputScript2 = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigBBin, sigABin}, sigSBin, rs1_1);
                     ti_1_1.setScriptSig(inputScript2);
                 }
-//
-
-//
-//                // Send it in
-//                {
-////                    SendRequest sr = SendRequest.forTx(vtx1_1);
-////                    sr.feePerKb = Coin.valueOf(1000);
-////                    arkService.kit.wallet().completeTx(sr);
-//                    vtx1_1.getInput(0).getScriptSig().correctlySpends(vtx1_1, 0, ScriptBuilder.createP2SHOutputScript(rs1_1), Script.ALL_VERIFY_FLAGS);
-//
-//                    // Send it out
-//                    arkService.kit.peerGroup().broadcastTransaction(vtx1_1);
-//                    System.out.println(vtx1_1);
-//
-//                    // Mine
-//                    Thread.sleep(5000);
-//                    ltbc.mine(16);
-//                    Thread.sleep(5000);
-//                    System.out.println(alice.kit.wallet().getBalance());
-//                }
-////
-//                System.out.println(alice.kit.wallet().getBalance());
-//
 
                 // Create a Unilateral exit
-
                 // Agreed exit for A
                 Transaction vtx1_1_1 = new Transaction(params);
                 vtx1_1_1.setVersion(2);
