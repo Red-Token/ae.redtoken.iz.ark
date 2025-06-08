@@ -182,7 +182,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 Script rs1_1 = asf.createVTXONodeScript(List.of(alice, bob).stream().map(Actor::getActivePublicKey).toArray(byte[][]::new));
 
                 // Create the output and send in the hash of the script into that output.
-                vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2SHOutputScript(rs1_1));
+                vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2WSHOutputScript(rs1_1));
 
                 // C + D + S | S + T=100
                 Script rs1_2 = asf.createVTXONodeScript(List.of(carol, david).stream().map(Actor::getActivePublicKey).toArray(byte[][]::new));
@@ -237,7 +237,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 vtx1_1.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1_2)));
 
                 // Connect the input
-                TransactionInput ti_1_1 = vtx1_1.addInput(findOutput(vtx1, rs1_1));
+                TransactionInput ti_1_1 = vtx1_1.addInput(findOutputWitness(vtx1, rs1_1.getProgram()));
 
                 // Fund the transaction
                 fund(vtx1_1, arkService);
@@ -249,13 +249,13 @@ public class AppTest2 extends LTBCMainTestCase {
 
 //                    byte[] sighash = vtx1_1.hashForSignature(0, rs1_1, Transaction.SigHash.ALL, true).getBytes();
 
-                    byte[] sigABin = alice.signInput(params, tx, program);
-                    byte[] sigBBin = bob.signInput(params, tx, program);
-                    byte[] sigSBin = arkService.signInput(params, tx, program);
+                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
 
 //                    Script inputScript2 = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigABin, sigBBin}, sigSBin, rs1_1);
-                    Script inputScript2 = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigBBin, sigABin}, sigSBin, rs1_1);
-                    ti_1_1.setScriptSig(inputScript2);
+                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigBBin, sigABin}, sigSBin, rs1_1.getProgram());
+                    ti_1_1.setWitness(witness);
                 }
 
                 // Create a Unilateral exit

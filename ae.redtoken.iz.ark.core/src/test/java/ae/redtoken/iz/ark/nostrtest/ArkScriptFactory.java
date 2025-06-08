@@ -7,7 +7,9 @@ import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
 import org.bitcoinj.script.ScriptOpCodes;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 class ArkScriptFactory {
 
@@ -19,6 +21,21 @@ class ArkScriptFactory {
         this.lockTime = lockTime;
         this.nSequence = nSequence;
         this.serviceKey = serviceKey;
+    }
+
+    public static TransactionWitness createVTXONodeUnlockWitnessScript(byte[][] userSignatures, byte[] serviceSignature, byte[] program) {
+
+        TransactionWitness witness = new TransactionWitness(userSignatures.length + 3);
+        witness.setPush(0, serviceSignature);
+
+        for (int i = 0; i < userSignatures.length; i++) {
+            witness.setPush(i + 1, userSignatures[i]);
+        }
+
+        witness.setPush(3, new byte[]{0x01});
+        witness.setPush(4, program);
+
+        return witness;
     }
 
     Script createVTXONodeScript(byte[][] userKeys) {
@@ -149,23 +166,6 @@ class ArkScriptFactory {
     }
 
     TransactionWitness createVTXOLeafColaborativeUnlockWitness(byte[] userSignature, byte[] serviceSignature, byte[] program) {
-
-//        Sha256Hash sigHash = t2.hashForWitnessSignature(
-//                input.getIndex(),
-//                witnessScript.getProgram(),
-//                output.getValue(),
-//                Transaction.SigHash.ALL,
-//                false
-//        );
-//
-//
-//        TransactionSignature aliceSig = new TransactionSignature(alice.activeKey.sign(sigHash), Transaction.SigHash.ALL, false);
-//        TransactionSignature arkServiceSig = new TransactionSignature(arkService.activeKey.sign(sigHash), Transaction.SigHash.ALL, false);
-
-//        byte[] userSignature = aliceSig.encodeToBitcoin();
-//        byte[] serviceSignature = arkServiceSig.encodeToBitcoin();
-
-
         TransactionWitness witness = new TransactionWitness(4);
         witness.setPush(0, serviceSignature);
         witness.setPush(1, userSignature);
