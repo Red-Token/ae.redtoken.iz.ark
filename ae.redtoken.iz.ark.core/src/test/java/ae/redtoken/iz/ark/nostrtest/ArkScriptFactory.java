@@ -1,6 +1,7 @@
 package ae.redtoken.iz.ark.nostrtest;
 
 import org.bitcoinj.core.ECKey;
+import org.bitcoinj.core.TransactionWitness;
 import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
@@ -145,5 +146,32 @@ class ArkScriptFactory {
                 .build();
 
         return inputScript;
+    }
+
+    TransactionWitness createVTXOLeafColaborativeUnlockWitness(byte[] userSignature, byte[] serviceSignature, byte[] program) {
+
+//        Sha256Hash sigHash = t2.hashForWitnessSignature(
+//                input.getIndex(),
+//                witnessScript.getProgram(),
+//                output.getValue(),
+//                Transaction.SigHash.ALL,
+//                false
+//        );
+//
+//
+//        TransactionSignature aliceSig = new TransactionSignature(alice.activeKey.sign(sigHash), Transaction.SigHash.ALL, false);
+//        TransactionSignature arkServiceSig = new TransactionSignature(arkService.activeKey.sign(sigHash), Transaction.SigHash.ALL, false);
+
+//        byte[] userSignature = aliceSig.encodeToBitcoin();
+//        byte[] serviceSignature = arkServiceSig.encodeToBitcoin();
+
+
+        TransactionWitness witness = new TransactionWitness(4);
+        witness.setPush(0, serviceSignature);
+        witness.setPush(1, userSignature);
+        witness.setPush(2, new byte[]{0x01});
+        witness.setPush(3, program);
+
+        return witness;
     }
 }
