@@ -122,16 +122,11 @@ public class AppTest2 extends LTBCMainTestCase {
             ctx.setVersion(2);
 
             byte[][] userKeys = List.of(alice, bob, carol, david).stream().map(Actor::getActivePublicKey).toArray(byte[][]::new);
-//            byte[] serviceKey = keyS.getPubKey();
 
             Script rs1 = asf.createVTXONodeScript(userKeys);
-//            Script rs1 = asf.createVTXOLeafScript(keyA.getPubKey());
-//            Script rs1 = ArkScriptFactory.createVTXOLeaf(keyA, keyS, timeLockBlocks);
-
-            System.out.println(rs1);
 
             // Create the output and send in the hash of the script into that output.
-            ctx.addOutput(Coin.valueOf(4, 0), ScriptBuilder.createP2SHOutputScript(rs1));
+            ctx.addOutput(Coin.valueOf(4, 0), ScriptBuilder.createP2WSHOutputScript(rs1));
 
             // Now let's complete and fund this transaction
             // Todo: this part here needs to be rewritten to work with the signing strategy
@@ -143,39 +138,18 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Send it out
                 arkService.kit.peerGroup().broadcastTransaction(sr.tx);
 
-//                arkService.kit.wallet().addWatchedScripts(List.of(p2shScript89));
-//                alice.kit.wallet().addWatchedScripts(List.of(p2shScript89));
-
                 // Mine
                 Thread.sleep(5000);
                 ltbc.mine(16);
                 Thread.sleep(5000);
             }
 
-            // Add the script to the wallets so that they watch it
-//            arkService.kit.wallet().addWatchedScripts(List.of(p2shScript));
-//            alice.kit.wallet().addWatchedScripts(List.of(p2shScript));
-//            bob.kit.wallet().addWatchedScripts(List.of(p2shScript));
-//            carol.kit.wallet().addWatchedScripts(List.of(p2shScript));
-//            david.kit.wallet().addWatchedScripts(List.of(p2shScript));
-
-            System.out.println(alice.kit.wallet().getBalance());
-
             // Now we make the next node.
             {
                 // On the ArkService side
-
                 Transaction vtx1 = new Transaction(params);
                 // And yes we should always  do this
                 vtx1.setVersion(2);
-
-//                TransactionOutput to = arkService.kit.wallet().getWatchedOutputs(false).stream()
-//                        .filter(transactionOutput -> transactionOutput.getScriptPubKey().equals(p2shScript89))
-//                        .findFirst()
-//                        .orElseThrow();
-
-//                // Create the output and send in the hash of the script into that output.
-//                vtx1.addOutput(Coin.valueOf(0, 80), alice.kit.wallet().freshReceiveAddress());
 
                 // Now we create the outputs
                 // A + B + S | S + T=100
@@ -190,27 +164,26 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Create the output and send in the hash of the script into that output.
                 vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2WSHOutputScript(rs1_2));
 
-                TransactionInput ti1 = vtx1.addInput(findOutput(ctx, rs1));
+                TransactionInput ti1 = vtx1.addInput(findOutputWitness(ctx, rs1.getProgram()));
+
+                // Fund it
                 fund(vtx1, arkService);
 
                 // Sign it
                 {
-//                    byte[] sighash = vtx1.hashForSignature(0, rs1.getProgram(), Transaction.SigHash.ALL, true).getBytes();
-
                     byte[] tx = vtx1.bitcoinSerialize();
                     byte[] program = rs1.getProgram();
 
-//                    byte[] sigABin = alice.sign(sighash);
-                    byte[] sigABin = alice.signInput(params, tx, program);
-                    byte[] sigBBin = bob.signInput(params, tx, program);
-                    byte[] sigCBin = carol.signInput(params, tx, program);
-                    byte[] sigDBin = david.signInput(params, tx, program);
+                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+                    byte[] sigCBin = carol.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+                    byte[] sigDBin = david.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
 
-                    byte[] sigSBin = arkService.signInput(params, tx, program);
+                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
 
                     // TODO Note we have to add the signatures in reverse order FIX THIS
-                    Script inputScript = ArkScriptFactory.createVTXONodeUnlockScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, rs1);
-                    ti1.setScriptSig(inputScript);
+                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, rs1.getProgram());
+                    ti1.setWitness(witness);
                 }
 
 //                // Send it in

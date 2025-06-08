@@ -24,16 +24,16 @@ class ArkScriptFactory {
     }
 
     public static TransactionWitness createVTXONodeUnlockWitnessScript(byte[][] userSignatures, byte[] serviceSignature, byte[] program) {
-
+        int i = 0;
         TransactionWitness witness = new TransactionWitness(userSignatures.length + 3);
-        witness.setPush(0, serviceSignature);
+        witness.setPush(i++, serviceSignature);
 
-        for (int i = 0; i < userSignatures.length; i++) {
-            witness.setPush(i + 1, userSignatures[i]);
+        for (byte[] userSignature : userSignatures) {
+            witness.setPush(i++, userSignature);
         }
 
-        witness.setPush(3, new byte[]{0x01});
-        witness.setPush(4, program);
+        witness.setPush(i++, new byte[]{0x01});
+        witness.setPush(i, program);
 
         return witness;
     }
