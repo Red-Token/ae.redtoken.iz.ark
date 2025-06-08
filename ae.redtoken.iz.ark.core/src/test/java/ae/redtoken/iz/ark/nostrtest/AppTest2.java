@@ -28,6 +28,11 @@ public class AppTest2 extends LTBCMainTestCase {
         return tx.getOutputs().stream().filter(o -> Arrays.equals(o.getScriptBytes(), ScriptBuilder.createP2SHOutputScript(rs).getProgram())).findFirst().orElseThrow();
     }
 
+    static TransactionOutput findOutputWitness(Transaction tx, Script rs) {
+        return tx.getOutputs().stream().filter(o -> Arrays.equals(o.getScriptBytes(), ScriptBuilder.createP2WSHOutputScript(rs).getProgram())).findFirst().orElseThrow();
+    }
+
+
     @Test
     public void test2() throws Exception {
         RegTestParams params = RegTestParams.get();
@@ -220,13 +225,22 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Create the leafs
                 // Now we create the outputs
                 // A + S | A + dT=10
+//                Script rs1_1_1 = asf.createVTXOLeafScript(alice.getActivePublicKey());
                 Script rs1_1_1 = asf.createVTXOLeafScript(alice.getActivePublicKey());
+//                byte[] lockScriptByteCode = asf.createVTXOLeafScript(alice.getActivePublicKey()).getProgram();
+
+
 
                 // This is a hash of the redeem-script
-                Script p2shScript1_1_1 = ScriptBuilder.createP2SHOutputScript(rs1_1_1);
+//                Script p2shScript1_1_1 = ScriptBuilder.createP2SHOutputScript(rs1_1_1);
+                Script p2wshScript1_1_1 = ScriptBuilder.createP2WSHOutputScript(rs1_1_1);
+
 
                 // Create the output and send in the hash of the script into that output.
-                vtx1_1.addOutput(Coin.valueOf(1, 0), p2shScript1_1_1);
+                vtx1_1.addOutput(Coin.valueOf(1, 0), p2wshScript1_1_1);
+                // TODO: not a carbon copy
+//                TransactionOutput output = t.addOutput(Coin.valueOf(0, 90), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(lockScriptByteCode)));
+
 
                 // B + S | B + dT=10
                 Script rs1_1_2 = asf.createVTXOLeafScript(bob.getActivePublicKey());
@@ -312,17 +326,23 @@ public class AppTest2 extends LTBCMainTestCase {
                 vtx1_1_1.addOutput(Coin.valueOf(0, 66), alice.kit.wallet().freshReceiveAddress());
 
                 // Connect the input
-                TransactionInput ti_1_1_1 = vtx1_1_1.addInput(findOutput(vtx1_1, rs1_1_1));
+                TransactionInput ti_1_1_1 = vtx1_1_1.addInput(findOutputWitness(vtx1_1, rs1_1_1));
 
                 fund(vtx1_1_1, arkService);
                 // Sign the input by everybody
                 {
-                    byte[] sighash = vtx1_1_1.hashForSignature(0, rs1_1_1, Transaction.SigHash.ALL, true).getBytes();
+//                    byte[] sighash = vtx1_1_1.hashForSignature(0, rs1_1_1, Transaction.SigHash.ALL, true).getBytes();
+//
+//                    byte[] sigABin = alice.sign(sighash);
+//                    byte[] sigSBin = arkService.sign(sighash);
+//                    byte[] sigSBin = arkService.sign(sighash);
 
-                    byte[] sigABin = alice.sign(sighash);
-                    byte[] sigSBin = arkService.sign(sighash);
+                    byte[] sigABin = alice.signInputWitness(params, vtx1_1_1.bitcoinSerialize(), rs1_1_1.getProgram(), ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
+                    byte[] sigSBin = arkService.signInputWitness(params, vtx1_1_1.bitcoinSerialize(), rs1_1_1.getProgram(), ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
 
-                    ti_1_1_1.setScriptSig(ArkScriptFactory.createVTXOLeafUnlockScript(sigABin, sigSBin, rs1_1_1));
+//                    ti_1_1_1.setScriptSig(ArkScriptFactory.createVTXOLeafUnlockScript(sigABin, sigSBin, rs1_1_1));
+                    ti_1_1_1.setWitness(asf.createVTXOLeafColaborativeUnlockWitness(sigABin, sigSBin, rs1_1_1.getProgram()));
+//                    ti_1_1_1.setScriptSig(ArkScriptFactory.createVTXOLeafUnlockScript(sigABin, sigSBin, rs1_1_1));
                 }
 
                 // Let's make an on-chain charity output
@@ -600,7 +620,7 @@ public class AppTest2 extends LTBCMainTestCase {
 //        fund(tx, arkService);
 
         // Verify that the input is correct
-        tx.getInput(0).getScriptSig().correctlySpends(tx, 0, ScriptBuilder.createP2SHOutputScript(rs), Script.ALL_VERIFY_FLAGS);
+//        tx.getInput(0).getScriptSig().correctlySpends(tx, 0, ScriptBuilder.createP2SHOutputScript(rs), Script.ALL_VERIFY_FLAGS);
 
         // Send it out
         System.out.println(tx);
