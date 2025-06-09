@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static ae.redtoken.iz.ark.nostrtest.TestNostr.RELAYS;
@@ -37,14 +36,14 @@ public class AppTest2 extends LTBCMainTestCase {
     static class ArkVirtualTransactionNode {
         final byte[] transaction;
         final byte[] program;
-        final long value;
-        final int index;
+//        final long value;
+//        final int index;
 
         public ArkVirtualTransactionNode(byte[] transaction, byte[] program, int index, long value) {
             this.transaction = transaction;
             this.program = program;
-            this.value = value;
-            this.index = index;
+//            this.value = value;
+//            this.index = index;
         }
     }
 
@@ -265,8 +264,14 @@ public class AppTest2 extends LTBCMainTestCase {
                         new ArkVirtualTransactionNode(vtx1_1.bitcoinSerialize(), rs1_1, ti_1_1.getIndex(), ti_1_1.getValue().value)
                 ));
 
-                Map<Sha256Hash, byte[]> aliceSignatures = alice.sign(params, vtxs_1_1);
-                Map<Sha256Hash, byte[]> bobSignatures = bob.sign(params, vtxs_1_1);
+                Map<Sha256Hash, byte[]> aliceSignatures = alice.signStack(params, vtxs_1_1);
+                Map<Sha256Hash, byte[]> bobSignatures = bob.signStack(params, vtxs_1_1);
+
+//                ArkVirtualTransactionStack vtxs_1_2 = new ArkVirtualTransactionStack(ctx.bitcoinSerialize(), List.of(
+//                        new ArkVirtualTransactionNode(vtx1.bitcoinSerialize(), rs1, ti1.getIndex(), ti1.getValue().value),
+//                        new ArkVirtualTransactionNode(vtx1_2.bitcoinSerialize(), rs1_2, ti_1_1.getIndex(), ti_1_1.getValue().value)
+//                ));
+
 
 
                 // Create a Unilateral exit
