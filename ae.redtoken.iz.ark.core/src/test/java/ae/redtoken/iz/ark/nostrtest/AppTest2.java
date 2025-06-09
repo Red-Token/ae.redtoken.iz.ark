@@ -169,22 +169,22 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Fund it
                 fund(vtx1, arkService);
 
-                // Sign it
-                {
-                    byte[] tx = vtx1.bitcoinSerialize();
-                    byte[] program = rs1.getProgram();
-
-                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-                    byte[] sigCBin = carol.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-                    byte[] sigDBin = david.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-
-                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-
-                    // TODO Note we have to add the signatures in reverse order FIX THIS
-                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, rs1.getProgram());
-                    ti1.setWitness(witness);
-                }
+//                // Sign it
+//                {
+//                    byte[] tx = vtx1.bitcoinSerialize();
+//                    byte[] program = rs1.getProgram();
+//
+//                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//                    byte[] sigCBin = carol.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//                    byte[] sigDBin = david.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//
+//                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//
+//                    // TODO Note we have to add the signatures in reverse order FIX THIS
+//                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, rs1.getProgram());
+//                    ti1.setWitness(witness);
+//                }
 
 //                // Send it in
 //                send(vtx1, arkService, rs1, alice);
@@ -214,18 +214,18 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Fund the transaction
                 fund(vtx1_1, arkService);
 
-                // Sign the input by everybody
-                {
-                    byte[] tx = vtx1_1.bitcoinSerialize();
-                    byte[] program = rs1_1.getProgram();
-
-                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
-                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
-                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
-
-                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigBBin, sigABin}, sigSBin, rs1_1.getProgram());
-                    ti_1_1.setWitness(witness);
-                }
+//                // Sign the input by everybody
+//                {
+//                    byte[] tx = vtx1_1.bitcoinSerialize();
+//                    byte[] program = rs1_1.getProgram();
+//
+//                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+//                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+//                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+//
+//                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigBBin, sigABin}, sigSBin, rs1_1.getProgram());
+//                    ti_1_1.setWitness(witness);
+//                }
 
                 // Create a Unilateral exit
                 // Agreed exit for A
@@ -239,6 +239,37 @@ public class AppTest2 extends LTBCMainTestCase {
                 TransactionInput ti_1_1_1 = vtx1_1_1.addInput(findOutputWitness(vtx1_1, rs1_1_1));
 
                 fund(vtx1_1_1, arkService);
+
+                // Sign it
+                {
+                    byte[] tx = vtx1.bitcoinSerialize();
+                    byte[] program = rs1.getProgram();
+
+                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+                    byte[] sigCBin = carol.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+                    byte[] sigDBin = david.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+
+                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+
+                    // TODO Note we have to add the signatures in reverse order FIX THIS
+                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, rs1.getProgram());
+                    ti1.setWitness(witness);
+                }
+
+                // Sign the input by everybody
+                {
+                    byte[] tx = vtx1_1.bitcoinSerialize();
+                    byte[] program = rs1_1.getProgram();
+
+                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+
+                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigBBin, sigABin}, sigSBin, rs1_1.getProgram());
+                    ti_1_1.setWitness(witness);
+                }
+
                 // Sign the input by everybody
                 {
                     byte[] sigABin = alice.signInputWitness(params, vtx1_1_1.bitcoinSerialize(), rs1_1_1, ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
