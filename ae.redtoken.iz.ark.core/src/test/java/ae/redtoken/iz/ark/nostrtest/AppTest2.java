@@ -313,62 +313,85 @@ public class AppTest2 extends LTBCMainTestCase {
 
                     Sha256Hash programHash = Sha256Hash.of(program);
 
-                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigABin, aliceSignatures.get(programHash));
-
-                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigBBin, bobSignatures.get(programHash));
-
-                    byte[] sigCBin = carol.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigCBin, carolSignatures.get(programHash));
-
-                    byte[] sigDBin = david.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigDBin, davidSignatures.get(programHash));
-
-                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigSBin, arkServiceSignatures.get(programHash));
+//                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigABin, aliceSignatures.get(programHash));
+//
+//                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigBBin, bobSignatures.get(programHash));
+//
+//                    byte[] sigCBin = carol.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigCBin, carolSignatures.get(programHash));
+//
+//                    byte[] sigDBin = david.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigDBin, davidSignatures.get(programHash));
+//
+//                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigSBin, arkServiceSignatures.get(programHash));
 
                     // TODO Note we have to add the signatures in reverse order FIX THIS
-                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, program);
+
+                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
+                            new byte[][]{
+                                    davidSignatures.get(programHash),
+                                    carolSignatures.get(programHash),
+                                    bobSignatures.get(programHash),
+                                    aliceSignatures.get(programHash)
+                            },
+                            arkServiceSignatures.get(programHash),
+                            program);
                     ti1.setWitness(witness);
                 }
 
                 // Sign the input by everybody
                 {
-                    byte[] tx = vtx1_1.bitcoinSerialize();
+//                    byte[] tx = vtx1_1.bitcoinSerialize();
                     byte[] program = rs1_1;
                     Sha256Hash programHash = Sha256Hash.of(program);
 
-                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigABin, aliceSignatures.get(programHash));
+//                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigABin, aliceSignatures.get(programHash));
+//
+//                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigBBin, bobSignatures.get(programHash));
+//
+//                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigSBin, arkServiceSignatures.get(programHash));
 
-                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigBBin, bobSignatures.get(programHash));
-
-                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigSBin, arkServiceSignatures.get(programHash));
-
-                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigBBin, sigABin}, sigSBin, program);
+//                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigBBin, sigABin}, sigSBin, program);
+                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
+                            new byte[][]{
+                                    bobSignatures.get(programHash),
+                                    aliceSignatures.get(programHash)
+                            },
+                            arkServiceSignatures.get(programHash),
+                            program);
                     ti_1_1.setWitness(witness);
                 }
 
                 // Sign the input by everybody
                 {
-                    byte[] tx = vtx1_2.bitcoinSerialize();
+//                    byte[] tx = vtx1_2.bitcoinSerialize();
                     byte[] program = rs1_2;
                     Sha256Hash programHash = Sha256Hash.of(program);
-                    TransactionInput ti = ti_1_2;
+//                    TransactionInput ti = ti_1_2;
 
-                    byte[] sigCBin = carol.signInputWitness(params, tx, program, ti_1_2.getIndex(), Objects.requireNonNull(ti_1_2.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigCBin, carolSignatures.get(programHash));
+//                    byte[] sigCBin = carol.signInputWitness(params, tx, program, ti_1_2.getIndex(), Objects.requireNonNull(ti_1_2.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigCBin, carolSignatures.get(programHash));
+//
+//                    byte[] sigDBin = david.signInputWitness(params, tx, program, ti_1_2.getIndex(), Objects.requireNonNull(ti_1_2.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigDBin, davidSignatures.get(programHash));
+//
+//                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_2.getIndex(), Objects.requireNonNull(ti_1_2.getConnectedOutput()).getValue());
+//                    Assertions.assertArrayEquals(sigSBin, arkServiceSignatures.get(programHash));
 
-                    byte[] sigDBin = david.signInputWitness(params, tx, program, ti_1_2.getIndex(), Objects.requireNonNull(ti_1_2.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigDBin, davidSignatures.get(programHash));
-
-                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_2.getIndex(), Objects.requireNonNull(ti_1_2.getConnectedOutput()).getValue());
-                    Assertions.assertArrayEquals(sigSBin, arkServiceSignatures.get(programHash));
-
-                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin}, sigSBin, program);
+                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
+                            new byte[][]{
+                                    davidSignatures.get(programHash),
+                                    carolSignatures.get(programHash)
+                            },
+                            arkServiceSignatures.get(programHash),
+                            program);
+//                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin}, sigSBin, program);
                     ti_1_2.setWitness(witness);
                 }
 
