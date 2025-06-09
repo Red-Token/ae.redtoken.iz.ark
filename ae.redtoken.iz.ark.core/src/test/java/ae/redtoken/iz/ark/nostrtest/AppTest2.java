@@ -53,12 +53,14 @@ public class AppTest2 extends LTBCMainTestCase {
         }
     }
 
-    static class ArkVirtualTransactionStackSignatures {
-        final byte[][] signatures;
+    static class ArkVirtualTransactionTreeSignatureRequest {
+    }
 
-        ArkVirtualTransactionStackSignatures(byte[][] signatures) {
-            this.signatures = signatures;
-        }
+    static class ArkVirtualTransactionTreeActivated {
+    }
+
+    static class ArkVirtualTransactionSignatureResponse {
+        final Map<String, byte[]> signatures = new HashMap<>();
     }
 
     @Test
@@ -292,21 +294,17 @@ public class AppTest2 extends LTBCMainTestCase {
                         new ArkVirtualTransactionNode(vtx1_2.bitcoinSerialize(), rs1_2)
                 ));
 
-                Map<Sha256Hash, byte[]> carolSignatures = carol.signStack(params, vtxs_1_1);
-                Map<Sha256Hash, byte[]> davidSignatures = david.signStack(params, vtxs_1_1);
+                Map<Sha256Hash, byte[]> carolSignatures = carol.signStack(params, vtxs_1_2);
+                Map<Sha256Hash, byte[]> davidSignatures = david.signStack(params, vtxs_1_2);
 
+                //Lets do this for S too
+                ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(ctx.bitcoinSerialize(), List.of(
+                        new ArkVirtualTransactionNode(vtx1.bitcoinSerialize(), rs1),
+                        new ArkVirtualTransactionNode(vtx1_1.bitcoinSerialize(), rs1_1),
+                        new ArkVirtualTransactionNode(vtx1_2.bitcoinSerialize(), rs1_2)
+                ));
 
-                // Create a Unilateral exit
-                // Agreed exit for A
-                Transaction vtx1_1_1 = new Transaction(params);
-                vtx1_1_1.setVersion(2);
-
-                // Create the output and send in the hash of the script into that output.
-                vtx1_1_1.addOutput(Coin.valueOf(0, 66), alice.kit.wallet().freshReceiveAddress());
-
-                // Connect the input
-                TransactionInput ti_1_1_1 = vtx1_1_1.addInput(findOutputWitness(vtx1_1, rs1_1_1));
-                fund(vtx1_1_1, arkService);
+                Map<Sha256Hash, byte[]> arkServiceSignatures = arkService.signStack(params, vtxs_full);
 
                 // Sign it
                 {
@@ -328,6 +326,7 @@ public class AppTest2 extends LTBCMainTestCase {
                     Assertions.assertArrayEquals(sigDBin, davidSignatures.get(programHash));
 
                     byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+                    Assertions.assertArrayEquals(sigSBin, arkServiceSignatures.get(programHash));
 
                     // TODO Note we have to add the signatures in reverse order FIX THIS
                     TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin, sigBBin, sigABin}, sigSBin, program);
@@ -347,10 +346,48 @@ public class AppTest2 extends LTBCMainTestCase {
                     Assertions.assertArrayEquals(sigBBin, bobSignatures.get(programHash));
 
                     byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+                    Assertions.assertArrayEquals(sigSBin, arkServiceSignatures.get(programHash));
 
                     TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigBBin, sigABin}, sigSBin, program);
                     ti_1_1.setWitness(witness);
                 }
+
+                // Sign the input by everybody
+                {
+                    byte[] tx = vtx1_2.bitcoinSerialize();
+                    byte[] program = rs1_2;
+                    Sha256Hash programHash = Sha256Hash.of(program);
+                    TransactionInput ti = ti_1_2;
+
+                    byte[] sigCBin = carol.signInputWitness(params, tx, program, ti_1_2.getIndex(), Objects.requireNonNull(ti_1_2.getConnectedOutput()).getValue());
+                    Assertions.assertArrayEquals(sigCBin, carolSignatures.get(programHash));
+
+                    byte[] sigDBin = david.signInputWitness(params, tx, program, ti_1_2.getIndex(), Objects.requireNonNull(ti_1_2.getConnectedOutput()).getValue());
+                    Assertions.assertArrayEquals(sigDBin, davidSignatures.get(programHash));
+
+                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_2.getIndex(), Objects.requireNonNull(ti_1_2.getConnectedOutput()).getValue());
+                    Assertions.assertArrayEquals(sigSBin, arkServiceSignatures.get(programHash));
+
+                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin}, sigSBin, program);
+                    ti_1_2.setWitness(witness);
+                }
+
+                // Create the tree
+
+
+                // Unilateral exit
+
+                // Create a Unilateral exit
+                // Agreed exit for A
+                Transaction vtx1_1_1 = new Transaction(params);
+                vtx1_1_1.setVersion(2);
+
+                // Create the output and send in the hash of the script into that output.
+                vtx1_1_1.addOutput(Coin.valueOf(0, 66), alice.kit.wallet().freshReceiveAddress());
+
+                // Connect the input
+                TransactionInput ti_1_1_1 = vtx1_1_1.addInput(findOutputWitness(vtx1_1, rs1_1_1));
+                fund(vtx1_1_1, arkService);
 
                 // Sign the input by everybody
                 {
@@ -363,6 +400,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Let's make an on-chain charity output
 //                fundAndSend(vtx1, arkService, rs1, alice);
 //                fundAndSend(vtx1_1, arkService, rs1_1, alice);
+
 
                 send(vtx1, arkService, null, alice);
                 send(vtx1_1, arkService, null, alice);
