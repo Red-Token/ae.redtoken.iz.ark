@@ -265,7 +265,8 @@ public class AppTest2 extends LTBCMainTestCase {
                         new ArkVirtualTransactionNode(vtx1_1.bitcoinSerialize(), rs1_1, ti_1_1.getIndex(), ti_1_1.getValue().value)
                 ));
 
-                Map<Sha256Hash, byte[]> sign = alice.sign(params, vtxs_1_1);
+                Map<Sha256Hash, byte[]> aliceSignatures = alice.sign(params, vtxs_1_1);
+                Map<Sha256Hash, byte[]> bobSignatures = bob.sign(params, vtxs_1_1);
 
 
                 // Create a Unilateral exit
@@ -290,7 +291,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
                     byte[] sigABin = alice.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
 
-                    Assertions.assertArrayEquals(sigABin, sign.get(programHash));
+                    Assertions.assertArrayEquals(sigABin, aliceSignatures.get(programHash));
 
                     byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
                     byte[] sigCBin = carol.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
@@ -310,10 +311,11 @@ public class AppTest2 extends LTBCMainTestCase {
                     Sha256Hash programHash = Sha256Hash.of(program);
 
                     byte[] sigABin = alice.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
-
-                    Assertions.assertArrayEquals(sigABin, sign.get(programHash));
+                    Assertions.assertArrayEquals(sigABin, aliceSignatures.get(programHash));
 
                     byte[] sigBBin = bob.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
+                    Assertions.assertArrayEquals(sigBBin, bobSignatures.get(programHash));
+
                     byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
 
                     TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigBBin, sigABin}, sigSBin, program);
