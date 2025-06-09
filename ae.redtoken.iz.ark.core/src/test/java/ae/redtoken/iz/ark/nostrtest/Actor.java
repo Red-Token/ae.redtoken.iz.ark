@@ -11,7 +11,8 @@ import org.bitcoinj.script.ScriptBuilder;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 
 class Actor {
 
@@ -78,7 +79,7 @@ class Actor {
         return activeKey.getPubKey();
     }
 
-    public byte[] signInputWitness(RegTestParams params, byte[] transactionBytes, byte[] lockScriptByteCode, int index, Coin value) {
+    public byte[] signInputWitness(NetworkParameters params, byte[] transactionBytes, byte[] lockScriptByteCode, int index, Coin value) {
         Transaction tx = new Transaction(params, transactionBytes);
 
         Sha256Hash sigHash = tx.hashForWitnessSignature(
@@ -90,5 +91,43 @@ class Actor {
         );
 
         return sign(sigHash.getBytes());
+    }
+
+    public Map<Sha256Hash,byte[]> sign(NetworkParameters params, AppTest2.ArkVirtualTransactionStack vtxs) {
+
+        Map<Sha256Hash, Transaction> treeMap = new HashMap<>();
+        Transaction root = new Transaction(params, vtxs.root);
+        treeMap.put(root.getTxId(), root);
+        Map<Sha256Hash, byte[]> sigMap = new HashMap<>();
+
+//        // Connect the input
+//        TransactionInput ti1 = vtx1.addInput(findOutputWitness(ctx, rs1));
+//
+//        // Sign it
+//        {
+//            byte[] tx = vtx1.bitcoinSerialize();
+//            byte[] program = rs1;
+//
+//            byte[] sigABin = alice.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+//            byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
+
+        vtxs.nodes.stream().forEachOrdered(node -> {
+            Transaction t = new Transaction(params, node.transaction);
+            treeMap.put(t.getTxId(), t);
+
+            t.getInputs().stream().filter(ti -> treeMap.containsKey(ti.getOutpoint().getHash())).forEachOrdered(
+                    ti ->  {
+                        TransactionOutput to = AppTest2.findOutputWitness(treeMap.get(ti.getOutpoint().getHash()), node.program);
+                        sigMap.put(Sha256Hash.of(node.program), signInputWitness(params, node.transaction, node.program, ti.getIndex(), to.getValue()));
+                    }
+            );
+
+                    System.out.println(t);
+//
+//
+//            byte[] sigABin = signInputWitness(params, node.transaction, node.program, node.index, Coin.valueOf(node.value));
+        });
+
+        return sigMap;
     }
 }
