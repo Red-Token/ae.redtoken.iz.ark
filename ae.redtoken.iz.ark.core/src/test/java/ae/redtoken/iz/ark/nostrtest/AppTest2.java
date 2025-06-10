@@ -25,6 +25,16 @@ import static ae.redtoken.iz.ark.nostrtest.TestNostr.RELAYS;
  */
 public class AppTest2 extends LTBCMainTestCase {
 
+    static class SignatureRequest {
+        final byte[] program;
+        final Collection<byte[]> signatures = new  ArrayList<>();
+
+        public SignatureRequest(byte[] program, byte[]... signatures) {
+            this.program = program;
+            this.signatures.addAll(Arrays.asList(signatures));
+        }
+    }
+
     static TransactionOutput findOutput(Transaction tx, Script rs) {
         return tx.getOutputs().stream().filter(o -> Arrays.equals(o.getScriptBytes(), ScriptBuilder.createP2SHOutputScript(rs).getProgram())).findFirst().orElseThrow();
     }
@@ -75,6 +85,10 @@ public class AppTest2 extends LTBCMainTestCase {
         Map<Sha256Hash, Transaction> nodes = new HashMap<>();
         Map<Sha256Hash, byte[]> locks = new HashMap<>();
         Collection<ArkLeafs> leafs;
+
+        TransactionOutput getOutput(TransactionOutPoint top) {
+            return nodes.get(top.getHash()).getOutput(top.getIndex());
+        }
     }
 
 
@@ -159,6 +173,8 @@ public class AppTest2 extends LTBCMainTestCase {
         int seqLockBlocks = 100;
 
         final ArkScriptFactory asf = new ArkScriptFactory(seqLockBlocks, timeLockBlocks, keyS.getPubKey());
+        final Map<Sha256Hash, byte[]> programs = new HashMap<>();
+
 
         Arrays.stream(users).forEach(user -> user.asf = asf);
 
@@ -228,11 +244,17 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Create the output and send in the hash of the script into that output.
                 vtx1_1.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1_1)));
 
+                // remember it
+                programs.put(Sha256Hash.of(rs1_1_1), rs1_1_1);
+
                 // B + S | B + dT=10
                 byte[] rs1_1_2 = asf.createVTXOLeafScript(bob.getActivePublicKey()).getProgram();
 
                 // Create the output and send in the hash of the script into that output.
                 vtx1_1.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1_2)));
+
+                // remember it
+                programs.put(Sha256Hash.of(rs1_1_2), rs1_1_2);
 
                 // Connect the input
                 TransactionInput ti_1_1 = vtx1_1.addInput(findOutputWitness(vtx1, rs1_1));
@@ -265,11 +287,17 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Create the output and send in the hash of the script into that output.
                 vtx1_2.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2_1)));
 
+                // remember it
+                programs.put(Sha256Hash.of(rs1_1_1), rs1_1_1);
+
                 // D + S | D + dT=10
                 byte[] rs1_2_2 = asf.createVTXOLeafScript(david.getActivePublicKey()).getProgram();
 
                 // Create the output and send in the hash of the script into that output.
                 vtx1_2.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2_2)));
+
+                // remember it
+                programs.put(Sha256Hash.of(rs1_2_2), rs1_2_2);
 
                 // Connect the input
                 TransactionInput ti_1_2 = vtx1_2.addInput(findOutputWitness(vtx1, rs1_2));
@@ -365,13 +393,11 @@ public class AppTest2 extends LTBCMainTestCase {
                 carol.setNewTree(tree);
                 david.setNewTree(tree);
 
-                for(ArkUser user : List.of(alice, bob, carol, david)) {
+                for (ArkUser user : List.of(alice, bob, carol, david)) {
                     Assertions.assertEquals(1, user.unspentVTXOs.size());
                 }
 
                 // Collaborative exit
-
-                // Create a Unilateral exit
                 // Agreed exit for A
                 Transaction vtx1_1_1 = new Transaction(params);
                 vtx1_1_1.setVersion(2);
@@ -379,24 +405,49 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Create the output and send in the hash of the script into that output.
                 vtx1_1_1.addOutput(Coin.valueOf(0, 66), alice.kit.wallet().freshReceiveAddress());
 
-                alice.unspentVTXOs.stream().findFirst().orElseThrow();
+                TransactionOutput output = alice.unspentVTXOs.stream().findFirst().orElseThrow();
 
                 // Connect the input
-                TransactionInput ti_1_1_1 = vtx1_1_1.addInput(findOutputWitness(vtx1_1, rs1_1_1));
+                TransactionInput ti_1_1_1 = vtx1_1_1.addInput(output);
+//                TransactionInput ti_1_1_1_2 = vtx1_1_1.addInput(output2);
                 fund(vtx1_1_1, arkService);
+
+                // Lets rool!
+                byte[] sigABin = alice.signInputWitness(params, vtx1_1_1.bitcoinSerialize(), rs1_1_1, ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
+
+                // Collaborative exit request
+                // Set of UTXO:s to exit, OutPoint
+                // This is on the ARK Service side
+
+
+                Map<Integer, SignatureRequest> programMap = Map.of(ti_1_1_1.getIndex(), new SignatureRequest(rs1_1_1, sigABin));
+
+                Transaction vtx1_1_1_server = new Transaction(params, vtx1_1_1.bitcoinSerialize());
+                Map<Integer, byte[]> signatures = new HashMap<>();
+
+                tree.nodes.put(vtx1_1_1.getTxId(), vtx1_1_1);
+
+                for (Integer index : programMap.keySet()) {
+                    TransactionInput ti = vtx1_1_1_server.getInput(index);
+                    TransactionOutput to = tree.getOutput(ti.getOutpoint());
+
+                    if(!to.isAvailableForSpending()) {
+                        throw new RuntimeException("Not available to send transaction");
+                    }
+
+                    to.markAsSpent(ti);
+                    signatures.put(index, arkService.signInputWitness(params, vtx1_1_1_server.bitcoinSerialize(), programMap.get(index).program, index, to.getValue()));
+                }
+
 
                 // Sign the input by everybody
                 {
-                    byte[] sigABin = alice.signInputWitness(params, vtx1_1_1.bitcoinSerialize(), rs1_1_1, ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
-                    byte[] sigSBin = arkService.signInputWitness(params, vtx1_1_1.bitcoinSerialize(), rs1_1_1, ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
-
-                    ti_1_1_1.setWitness(asf.createVTXOLeafColaborativeUnlockWitness(sigABin, sigSBin, rs1_1_1));
+                    ti_1_1_1.setWitness(asf.createVTXOLeafColaborativeUnlockWitness(sigABin, signatures.get(ti_1_1_1.getIndex()), rs1_1_1));
                 }
 
                 // Let's make an on-chain charity output
 //                fundAndSend(vtx1, arkService, rs1, alice);
 //                fundAndSend(vtx1_1, arkService, rs1_1, alice);
-
 
                 send(vtx1, arkService, null, alice);
                 send(vtx1_1, arkService, null, alice);
