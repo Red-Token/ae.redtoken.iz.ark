@@ -351,6 +351,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
                 // Create the next step
                 ArkTree ztree = new ArkTree();
+
                 FoundingMember afm = new FoundingMember(Coin.valueOf(1, 0), alice.getActivePublicKey());
                 FoundingMember bfm = new FoundingMember(Coin.valueOf(1, 0), bob.getActivePublicKey());
                 TransactionOutput fundingOutput = findOutputWitness(vtx1, rs1_1);
@@ -406,34 +407,42 @@ public class AppTest2 extends LTBCMainTestCase {
 //                }
 
                 // Create the next step
-                Transaction vtx1_2 = new Transaction(params);
-                vtx1_2.setVersion(2);
+                FoundingMember cfm = new FoundingMember(Coin.valueOf(1, 0), carol.getActivePublicKey());
+                FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
+                TransactionOutput fundingOutput2 = findOutputWitness(vtx1, rs1_2);
+                Sha256Hash hs2 = arf.createArkTreeNode(ztree, List.of(cfm, dfm), fundingOutput2);
+                Transaction vtx1_2 = ztree.nodes.get(hs2);
+//                Transaction vtx1_2 = new Transaction(params);
+//                vtx1_2.setVersion(2);
 
                 // Create the leafs
                 // Now we create the outputs
                 // C + S | C + dT=10
-                byte[] rs1_2_1 = asf.createVTXOLeafScript(carol.getActivePublicKey()).getProgram();
+                byte[] rs1_2_1 = ztree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(carol.getActivePublicKey()).getProgram()));
 
                 // Create the output and send in the hash of the script into that output.
-                vtx1_2.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2_1)));
+//                vtx1_2.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2_1)));
 
                 // remember it
                 programs.put(Sha256Hash.of(rs1_2_1), rs1_2_1);
 
                 // D + S | D + dT=10
-                byte[] rs1_2_2 = asf.createVTXOLeafScript(david.getActivePublicKey()).getProgram();
+                byte[] rs1_2_2 = ztree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(david.getActivePublicKey()).getProgram()));
+//                byte[] rs1_2_2 = asf.createVTXOLeafScript(david.getActivePublicKey()).getProgram();
 
                 // Create the output and send in the hash of the script into that output.
-                vtx1_2.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2_2)));
+//                vtx1_2.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2_2)));
 
                 // remember it
                 programs.put(Sha256Hash.of(rs1_2_2), rs1_2_2);
 
                 // Connect the input
-                TransactionInput ti_1_2 = vtx1_2.addInput(findOutputWitness(vtx1, rs1_2));
+
+//                TransactionInput ti_1_2 = vtx1_2.addInput(findOutputWitness(vtx1, rs1_2));
+                TransactionInput ti_1_2 = vtx1_2.getInput(0);
 
                 // Fund the transaction
-                fund(vtx1_2, arkService);
+//                fund(vtx1_2, arkService);
 
                 ArkVirtualTransactionStack vtxs_1_1 = new ArkVirtualTransactionStack(ctx.bitcoinSerialize(), List.of(
                         new ArkVirtualTransactionNode(vtx1.bitcoinSerialize(), rs1),
