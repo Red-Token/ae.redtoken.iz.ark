@@ -230,7 +230,8 @@ public class AppTest2 extends LTBCMainTestCase {
                     // rec create the tree
                     Transaction tx = new Transaction(params);
                     tx.setVersion(2);
-                    tx.addInput(output);
+                    TransactionInput ti = tx.addInput(output);
+                    output.markAsSpent(ti);
 
                     Collection<SubNode> subNodes = new ArrayList<>();
 
@@ -306,7 +307,7 @@ public class AppTest2 extends LTBCMainTestCase {
             byte[] rs1 = asf.createVTXONodeScript(userKeys).getProgram();
 
             // Create the output and send in the hash of the script into that output.
-            ctx.addOutput(Coin.valueOf(4, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
+            TransactionOutput fo = ctx.addOutput(Coin.valueOf(4, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
 
             // Now let's complete and fund this transaction
             // Todo: this part here needs to be rewritten to work with the signing strategy
@@ -326,40 +327,53 @@ public class AppTest2 extends LTBCMainTestCase {
 
             // Now we make the next node.
             {
+                FoundingMember afm = new FoundingMember(Coin.valueOf(1, 0), alice.getActivePublicKey());
+                FoundingMember bfm = new FoundingMember(Coin.valueOf(1, 0), bob.getActivePublicKey());
+                FoundingMember cfm = new FoundingMember(Coin.valueOf(1, 0), carol.getActivePublicKey());
+                FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
+
+                //
+                ArkTree ztree = new ArkTree();
+                Sha256Hash hs = arf.createArkTreeNode(ztree, List.of(afm, bfm, cfm, dfm), fo);
+
                 // On the ArkService side
-                Transaction vtx1 = new Transaction(params);
+                Transaction vtx1 = ztree.nodes.get(hs);
+
+//                Transaction vtx1 = new Transaction(params);
                 // And yes we should always  do this
-                vtx1.setVersion(2);
+//                vtx1.setVersion(2);
 
                 // Now we create the outputs
                 // A + B + S | S + T=100
-                byte[] rs1_1 = asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).getProgram();
+//                byte[] rs1_1 = asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).getProgram();
+                byte[] rs1_1 = ztree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).getProgram()));
 
                 // Create the output and send in the hash of the script into that output.
-                vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1)));
+//                vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1)));
 
                 // C + D + S | S + T=100
-                byte[] rs1_2 = asf.createVTXONodeScript(Stream.of(carol, david).map(Actor::getActivePublicKey).toArray(byte[][]::new)).getProgram();
+//                byte[] rs1_2 = asf.createVTXONodeScript(Stream.of(carol, david).map(Actor::getActivePublicKey).toArray(byte[][]::new)).getProgram();
+                byte[] rs1_2 = ztree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(carol, david).map(Actor::getActivePublicKey).toArray(byte[][]::new)).getProgram()));
 
                 // Create the output and send in the hash of the script into that output.
-                vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2)));
+//                vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2)));
 
-                TransactionInput ti1 = vtx1.addInput(findOutputWitness(ctx, rs1));
+//                TransactionInput ti1 = vtx1.addInput(findOutputWitness(ctx, rs1));
+                TransactionInput ti1 = vtx1.getInput(0);
 
                 // Fund it
-                fund(vtx1, arkService);
+//                fund(vtx1, arkService);
 
                 // Create the next step
-                ArkTree ztree = new ArkTree();
 
-                FoundingMember afm = new FoundingMember(Coin.valueOf(1, 0), alice.getActivePublicKey());
-                FoundingMember bfm = new FoundingMember(Coin.valueOf(1, 0), bob.getActivePublicKey());
-                TransactionOutput fundingOutput = findOutputWitness(vtx1, rs1_1);
-                Sha256Hash hs = arf.createArkTreeNode(ztree, List.of(afm, bfm), fundingOutput);
+//                TransactionOutput fundingOutput = findOutputWitness(vtx1, rs1_1);
+//                Sha256Hash hs1 = arf.createArkTreeNode(ztree, List.of(afm, bfm), fundingOutput);
 
-                Transaction tz = ztree.nodes.get(hs);
+//                vtx1.getOutput(0).getSpentBy().getParentTransaction();
+//
+//                Transaction tz = ztree.nodes.get(hs1);
 
-                Transaction vtx1_1 = tz;
+                Transaction vtx1_1 = vtx1.getOutput(0).getSpentBy().getParentTransaction();
 //                Transaction vtx1_1 = new Transaction(params);
 //                vtx1_1.setVersion(2);
 
@@ -407,11 +421,10 @@ public class AppTest2 extends LTBCMainTestCase {
 //                }
 
                 // Create the next step
-                FoundingMember cfm = new FoundingMember(Coin.valueOf(1, 0), carol.getActivePublicKey());
-                FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
-                TransactionOutput fundingOutput2 = findOutputWitness(vtx1, rs1_2);
-                Sha256Hash hs2 = arf.createArkTreeNode(ztree, List.of(cfm, dfm), fundingOutput2);
-                Transaction vtx1_2 = ztree.nodes.get(hs2);
+//                TransactionOutput fundingOutput2 = findOutputWitness(vtx1, rs1_2);
+//                Sha256Hash hs2 = arf.createArkTreeNode(ztree, List.of(cfm, dfm), fundingOutput2);
+                Transaction vtx1_2 = vtx1.getOutput(1).getSpentBy().getParentTransaction();
+//                Transaction vtx1_2 = ztree.nodes.get(hs2);
 //                Transaction vtx1_2 = new Transaction(params);
 //                vtx1_2.setVersion(2);
 
