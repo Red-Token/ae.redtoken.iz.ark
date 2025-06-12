@@ -27,7 +27,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
     static class SignatureRequest {
         final byte[] program;
-        final Collection<byte[]> signatures = new  ArrayList<>();
+        final Collection<byte[]> signatures = new ArrayList<>();
 
         public SignatureRequest(byte[] program, byte[]... signatures) {
             this.program = program;
@@ -76,13 +76,24 @@ public class AppTest2 extends LTBCMainTestCase {
     static class ArkTree {
         public ArkService arkService;
 
+        static class NodeMap extends HashMap<Sha256Hash, Transaction> {
+            Transaction put(Transaction transaction) {
+                return put(transaction.getTxId(), transaction);
+            }
+        }
+
         static class ArkLeafs {
             TransactionOutPoint outpoint;
             byte[] program;
+
+            public ArkLeafs(TransactionOutPoint outpoint, byte[] program) {
+                this.outpoint = outpoint;
+                this.program = program;
+            }
         }
 
         Collection<Sha256Hash> roots;
-        Map<Sha256Hash, Transaction> nodes = new HashMap<>();
+        NodeMap nodes = new NodeMap();
         Map<Sha256Hash, byte[]> locks = new HashMap<>();
         Collection<ArkLeafs> leafs;
 
@@ -185,6 +196,113 @@ public class AppTest2 extends LTBCMainTestCase {
             ctx.setVersion(2);
 
             byte[][] userKeys = List.of(alice, bob, carol, david).stream().map(Actor::getActivePublicKey).toArray(byte[][]::new);
+
+            class ArkRoundFactory {
+                static class FoundingMember {
+                    final Coin value;
+                    final byte[] key;
+
+                    public FoundingMember(Coin value, byte[] key) {
+                        this.value = value;
+                        this.key = key;
+                    }
+                }
+
+                void createArkTreeRoot(List<FoundingMember> foundingMembers, Collection<TransactionOutput> foundingOutputs) {
+
+                    ArkTree tree = new ArkTree();
+
+                    // rec create the tree
+                    Transaction t = new Transaction(params);
+                    t.setVersion(2);
+
+                    foundingOutputs.forEach(t::addInput);
+
+                    List<FoundingMember> list = foundingMembers;
+                    byte[] rs = asf.createVTXONodeScript(list.stream().map(m -> m.key).toArray(byte[][]::new)).getProgram();
+
+                    // Create the output and send in the hash of the script into that output.
+                    TransactionOutput nodeOutput = t.addOutput(Coin.valueOf(list.stream().mapToLong(m -> m.value.value).sum()), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs)));
+                    tree.locks.put(Sha256Hash.of(rs), rs);
+
+                    createArkTreeNode(tree, list, nodeOutput);
+                }
+
+                void createArkTreeNode(ArkTree tree, List<FoundingMember> members, TransactionOutput output) {
+                    record SubNode(List<FoundingMember> list, TransactionOutput output) {
+                    }
+
+                    // rec create the tree
+                    Transaction t = new Transaction(params);
+                    t.setVersion(2);
+                    t.addInput(output);
+
+                    Collection<SubNode> subNodes = new ArrayList<>();
+
+                    int chunkSize = members.size() / 2;
+
+                    for (int i = 0; i < members.size(); i += chunkSize) {
+                        List<FoundingMember> list = members.subList(i, i + chunkSize - 1);
+
+                        if (list.size() <= 1) {
+                            FoundingMember member = list.getFirst();
+
+                            Script rs = asf.createVTXOLeafScript(member.key);
+                            tree.locks.put(Sha256Hash.of(rs.getProgram()), rs.getProgram());
+                            TransactionOutput leafOutput = t.addOutput(
+                                    member.value,
+                                    ScriptBuilder.createP2WSHOutputScript(rs));
+
+                            tree.leafs.add(new ArkTree.ArkLeafs(leafOutput.getOutPointFor(), rs.getProgram()));
+
+                        } else {
+
+                            Script rs = asf.createVTXONodeScript(list.stream().map(m -> m.key).toArray(byte[][]::new));
+                            tree.locks.put(Sha256Hash.of(rs.getProgram()), rs.getProgram());
+                            TransactionOutput nodeOutput = t.addOutput(
+                                    Coin.valueOf(list.stream().mapToLong(m -> m.value.value).sum()),
+                                    ScriptBuilder.createP2WSHOutputScript(rs));
+
+                            subNodes.add(new SubNode(list, nodeOutput));
+                        }
+                    }
+
+                    tree.nodes.put(t);
+
+                    subNodes.forEach(subNode -> {
+                        createArkTreeNode(tree, subNode.list, subNode.output);
+                    });
+                }
+            }
+
+
+            TransactionOutput foundingOutput;
+
+            // Lets create the founding output
+            {
+                Transaction t = new Transaction(params);
+                t.setVersion(2);
+                foundingOutput = t.addOutput(Coin.valueOf(4, 0), arkService.kit.wallet().freshReceiveAddress());
+
+                SendRequest sr = SendRequest.forTx(t);
+                sr.feePerKb = Coin.valueOf(1000);
+                arkService.kit.wallet().completeTx(sr);
+
+                // Send it out
+                arkService.kit.peerGroup().broadcastTransaction(sr.tx);
+
+                // Mine
+                Thread.sleep(5000);
+                ltbc.mine(16);
+                Thread.sleep(5000);
+            }
+
+            ArkRoundFactory arf = new ArkRoundFactory();
+
+//            arf.createArkTreeRoot(Arrays.stream(users).map(arkUser -> new ArkRoundFactory.FoundingMember(
+//                            Coin.valueOf(1, 0),
+//                            arkUser.activeKey.getPubKey())).toList(),
+//                    List.of(foundingOutput));
 
             byte[] rs1 = asf.createVTXONodeScript(userKeys).getProgram();
 
@@ -422,21 +540,21 @@ public class AppTest2 extends LTBCMainTestCase {
 
                 Map<Integer, SignatureRequest> programMap = Map.of(ti_1_1_1.getIndex(), new SignatureRequest(rs1_1_1, sigABin));
 
-                Transaction vtx1_1_1_server = new Transaction(params, vtx1_1_1.bitcoinSerialize());
+                Transaction tx = new Transaction(params, vtx1_1_1.bitcoinSerialize());
                 Map<Integer, byte[]> signatures = new HashMap<>();
 
                 tree.nodes.put(vtx1_1_1.getTxId(), vtx1_1_1);
 
                 for (Integer index : programMap.keySet()) {
-                    TransactionInput ti = vtx1_1_1_server.getInput(index);
+                    TransactionInput ti = tx.getInput(index);
                     TransactionOutput to = tree.getOutput(ti.getOutpoint());
 
-                    if(!to.isAvailableForSpending()) {
+                    if (!to.isAvailableForSpending()) {
                         throw new RuntimeException("Not available to send transaction");
                     }
 
                     to.markAsSpent(ti);
-                    signatures.put(index, arkService.signInputWitness(params, vtx1_1_1_server.bitcoinSerialize(), programMap.get(index).program, index, to.getValue()));
+                    signatures.put(index, arkService.signInputWitness(params, tx.bitcoinSerialize(), programMap.get(index).program, index, to.getValue()));
                 }
 
 
