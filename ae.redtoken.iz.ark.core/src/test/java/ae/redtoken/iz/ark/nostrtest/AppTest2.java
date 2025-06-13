@@ -144,13 +144,10 @@ public class AppTest2 extends LTBCMainTestCase {
 //        sr.ensureMinRequiredFee = false;
 //        arkService.kit.wallet().signTransaction(sr);
         }
-
     }
-
 
     record FoundingMember(Coin value, byte[] key) {
     }
-
 
     static class SignatureRequest {
         final byte[] program;
@@ -364,18 +361,20 @@ public class AppTest2 extends LTBCMainTestCase {
             // Create the output and send in the hash of the script into that output.
             TransactionOutput fo = ctx.addOutput(Coin.valueOf(4, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
 
-//            ctx.addInput(foundingOutput);
-//            fund(ctx, arkService);
+            TransactionInput tiz = ctx.addInput(foundingOutput);
+            foundingOutput.markAsSpent(tiz);
+            arkService.signSpendingInput(tiz);
+            fund(ctx, arkService);
 
             // Now let's complete and fund this transaction
             // Todo: this part here needs to be rewritten to work with the signing strategy
             {
-                SendRequest sr = SendRequest.forTx(ctx);
-                sr.feePerKb = Coin.valueOf(1000);
-                arkService.kit.wallet().completeTx(sr);
+//                SendRequest sr = SendRequest.forTx(ctx);
+//                sr.feePerKb = Coin.valueOf(1000);
+//                arkService.kit.wallet().completeTx(sr);
 //
 //                 Send it out
-                arkService.kit.peerGroup().broadcastTransaction(sr.tx);
+                arkService.kit.peerGroup().broadcastTransaction(ctx);
 //                arkService.kit.peerGroup().broadcastTransaction(ctx);
 
                 // Mine
