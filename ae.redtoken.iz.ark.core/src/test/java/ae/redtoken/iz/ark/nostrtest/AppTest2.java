@@ -299,6 +299,12 @@ public class AppTest2 extends LTBCMainTestCase {
 
             ArkRoundFactory arf = new ArkRoundFactory();
 
+            FoundingMember afm = new FoundingMember(Coin.valueOf(1, 0), alice.getActivePublicKey());
+            FoundingMember bfm = new FoundingMember(Coin.valueOf(1, 0), bob.getActivePublicKey());
+            FoundingMember cfm = new FoundingMember(Coin.valueOf(1, 0), carol.getActivePublicKey());
+            FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
+
+
 //            arf.createArkTreeRoot(Arrays.stream(users).map(arkUser -> new ArkRoundFactory.FoundingMember(
 //                            Coin.valueOf(1, 0),
 //                            arkUser.activeKey.getPubKey())).toList(),
@@ -309,15 +315,19 @@ public class AppTest2 extends LTBCMainTestCase {
             // Create the output and send in the hash of the script into that output.
             TransactionOutput fo = ctx.addOutput(Coin.valueOf(4, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
 
+//            ctx.addInput(foundingOutput);
+//            fund(ctx, arkService);
+
             // Now let's complete and fund this transaction
             // Todo: this part here needs to be rewritten to work with the signing strategy
             {
                 SendRequest sr = SendRequest.forTx(ctx);
                 sr.feePerKb = Coin.valueOf(1000);
                 arkService.kit.wallet().completeTx(sr);
-
-                // Send it out
+//
+//                 Send it out
                 arkService.kit.peerGroup().broadcastTransaction(sr.tx);
+//                arkService.kit.peerGroup().broadcastTransaction(ctx);
 
                 // Mine
                 Thread.sleep(5000);
@@ -327,11 +337,6 @@ public class AppTest2 extends LTBCMainTestCase {
 
             // Now we make the next node.
             {
-                FoundingMember afm = new FoundingMember(Coin.valueOf(1, 0), alice.getActivePublicKey());
-                FoundingMember bfm = new FoundingMember(Coin.valueOf(1, 0), bob.getActivePublicKey());
-                FoundingMember cfm = new FoundingMember(Coin.valueOf(1, 0), carol.getActivePublicKey());
-                FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
-
                 //
                 ArkTree ztree = new ArkTree();
                 Sha256Hash hs = arf.createArkTreeNode(ztree, List.of(afm, bfm, cfm, dfm), fo);
@@ -570,7 +575,6 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Collaborative exit request
                 // Set of UTXO:s to exit, OutPoint
                 // This is on the ARK Service side
-
 
                 Map<Integer, SignatureRequest> programMap = Map.of(ti_1_1_1.getIndex(), new SignatureRequest(rs1_1_1, sigABin));
 
