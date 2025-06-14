@@ -36,24 +36,38 @@ public class AppTest2 extends LTBCMainTestCase {
             this.arkService = arkService;
         }
 
-        void createArkTreeRoot(List<FoundingMember> foundingMembers, Collection<TransactionOutput> foundingOutputs) {
+        static class Zel {
+            TransactionOutput to;
+            byte[] program;
+            ArkTree at;
+
+            public Zel(ArkTree at, TransactionOutput to, byte[] program) {
+                this.at = at;
+                this.to = to;
+                this.program = program;
+            }
+        }
+
+        Zel createArkTreeRoot(List<FoundingMember> foundingMembers, Collection<TransactionOutput> foundingOutputs) {
 
             ArkTree tree = new ArkTree();
 
             // rec create the tree
-            Transaction t = new Transaction(params);
-            t.setVersion(2);
+            Transaction tx = new Transaction(params);
+            tx.setVersion(2);
 
-            foundingOutputs.forEach(t::addInput);
+            foundingOutputs.forEach(tx::addInput);
 
-            List<FoundingMember> list = foundingMembers;
-            byte[] rs = asf.createVTXONodeScript(list.stream().map(m -> m.key).toArray(byte[][]::new)).getProgram();
+            byte[] rs = asf.createVTXONodeScript(foundingMembers.stream().map(m -> m.key).toArray(byte[][]::new)).getProgram();
 
             // Create the output and send in the hash of the script into that output.
-            TransactionOutput nodeOutput = t.addOutput(Coin.valueOf(list.stream().mapToLong(m -> m.value.value).sum()), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs)));
+            TransactionOutput nodeOutput = tx.addOutput(Coin.valueOf(foundingMembers.stream().mapToLong(m -> m.value.value).sum()), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs)));
+            fund(tx, arkService);
+
             tree.locks.put(Sha256Hash.of(rs), rs);
 
-            createArkTreeNode(tree, list, nodeOutput);
+//            createArkTreeNode(tree, foundingMembers, nodeOutput);
+            return new Zel(tree, nodeOutput, rs);
         }
 
         Sha256Hash createArkTreeNode(ArkTree tree, List<FoundingMember> members, TransactionOutput output) {
@@ -350,11 +364,9 @@ public class AppTest2 extends LTBCMainTestCase {
             FoundingMember cfm = new FoundingMember(Coin.valueOf(1, 0), carol.getActivePublicKey());
             FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
 
+            List<FoundingMember> fml = List.of(afm, bfm, cfm, dfm);
 
-//            arf.createArkTreeRoot(Arrays.stream(users).map(arkUser -> new ArkRoundFactory.FoundingMember(
-//                            Coin.valueOf(1, 0),
-//                            arkUser.activeKey.getPubKey())).toList(),
-//                    List.of(foundingOutput));
+//            ArkRoundFactory.Zel zel = arf.createArkTreeRoot(fml, List.of(foundingOutput));
 
             byte[] rs1 = asf.createVTXONodeScript(userKeys).getProgram();
 
@@ -366,28 +378,23 @@ public class AppTest2 extends LTBCMainTestCase {
             arkService.signSpendingInput(tiz);
             fund(ctx, arkService);
 
-            // Now let's complete and fund this transaction
-            // Todo: this part here needs to be rewritten to work with the signing strategy
-            {
-//                SendRequest sr = SendRequest.forTx(ctx);
-//                sr.feePerKb = Coin.valueOf(1000);
-//                arkService.kit.wallet().completeTx(sr);
-//
-//                 Send it out
-                arkService.kit.peerGroup().broadcastTransaction(ctx);
+//            // Now let's complete and fund this transaction
+//            // Todo: this part here needs to be rewritten to work with the signing strategy
+//            {
+////                 Send it out
 //                arkService.kit.peerGroup().broadcastTransaction(ctx);
-
-                // Mine
-                Thread.sleep(5000);
-                ltbc.mine(16);
-                Thread.sleep(5000);
-            }
+//
+//                // Mine
+//                Thread.sleep(5000);
+//                ltbc.mine(16);
+//                Thread.sleep(5000);
+//            }
 
             // Now we make the next node.
             {
                 //
                 ArkTree ztree = new ArkTree();
-                Sha256Hash hs = arf.createArkTreeNode(ztree, List.of(afm, bfm, cfm, dfm), fo);
+                Sha256Hash hs = arf.createArkTreeNode(ztree, fml, fo);
 
                 // On the ArkService side
                 Transaction vtx1 = ztree.nodes.get(hs);
@@ -592,6 +599,20 @@ public class AppTest2 extends LTBCMainTestCase {
                 tree.nodes.put(vtx1.getTxId(), vtx1);
                 tree.nodes.put(vtx1_1.getTxId(), vtx1_1);
                 tree.nodes.put(vtx1_2.getTxId(), vtx1_2);
+
+                // Now let's complete and fund this transaction
+                // Todo: this part here needs to be rewritten to work with the signing strategy
+                {
+//                 Send it out
+                    arkService.kit.peerGroup().broadcastTransaction(ctx);
+
+                    // Mine
+                    Thread.sleep(5000);
+                    ltbc.mine(16);
+                    Thread.sleep(5000);
+                }
+
+                ///  The ARK Round is deposit
 
                 alice.setNewTree(tree);
                 bob.setNewTree(tree);
