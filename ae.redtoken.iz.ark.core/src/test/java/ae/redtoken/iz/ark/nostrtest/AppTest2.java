@@ -37,11 +37,13 @@ public class AppTest2 extends LTBCMainTestCase {
         }
 
         static class Zel {
+            Transaction tx;
             TransactionOutput to;
             byte[] program;
             ArkTree at;
 
-            public Zel(ArkTree at, TransactionOutput to, byte[] program) {
+            public Zel(Transaction tx, ArkTree at, TransactionOutput to, byte[] program) {
+                this.tx = tx;
                 this.at = at;
                 this.to = to;
                 this.program = program;
@@ -49,7 +51,6 @@ public class AppTest2 extends LTBCMainTestCase {
         }
 
         Zel createArkTreeRoot(List<FoundingMember> foundingMembers, Collection<TransactionOutput> foundingOutputs) {
-
             ArkTree tree = new ArkTree();
 
             // rec create the tree
@@ -60,6 +61,10 @@ public class AppTest2 extends LTBCMainTestCase {
 
             byte[] rs = asf.createVTXONodeScript(foundingMembers.stream().map(m -> m.key).toArray(byte[][]::new)).getProgram();
 
+//            byte[][] userKeys = fml.stream().map(foundingMember -> foundingMember.key).toArray(byte[][]::new);
+//            byte[] rs1 = asf.createVTXONodeScript(userKeys).getProgram();
+
+
             // Create the output and send in the hash of the script into that output.
             TransactionOutput nodeOutput = tx.addOutput(Coin.valueOf(foundingMembers.stream().mapToLong(m -> m.value.value).sum()), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs)));
             fund(tx, arkService);
@@ -67,7 +72,7 @@ public class AppTest2 extends LTBCMainTestCase {
             tree.locks.put(Sha256Hash.of(rs), rs);
 
 //            createArkTreeNode(tree, foundingMembers, nodeOutput);
-            return new Zel(tree, nodeOutput, rs);
+            return new Zel(tx, tree, nodeOutput, rs);
         }
 
         Sha256Hash createArkTreeNode(ArkTree tree, List<FoundingMember> members, TransactionOutput output) {
@@ -330,12 +335,6 @@ public class AppTest2 extends LTBCMainTestCase {
         {
             ///  Create the root node
             // Create the transaction
-            Transaction ctx = new Transaction(params);
-            ctx.setVersion(2);
-
-            byte[][] userKeys = List.of(alice, bob, carol, david).stream().map(Actor::getActivePublicKey).toArray(byte[][]::new);
-
-
             TransactionOutput foundingOutput;
 
             // Lets create the founding output
@@ -366,17 +365,25 @@ public class AppTest2 extends LTBCMainTestCase {
 
             List<FoundingMember> fml = List.of(afm, bfm, cfm, dfm);
 
-//            ArkRoundFactory.Zel zel = arf.createArkTreeRoot(fml, List.of(foundingOutput));
+//            Transaction ctx = new Transaction(params);
+//            ctx.setVersion(2);
 
-            byte[] rs1 = asf.createVTXONodeScript(userKeys).getProgram();
+            ArkRoundFactory.Zel zel = arf.createArkTreeRoot(fml, List.of(foundingOutput));
+
+//            byte[][] userKeys = List.of(alice, bob, carol, david).stream().map(Actor::getActivePublicKey).toArray(byte[][]::new);
+//            byte[][] userKeys = fml.stream().map(foundingMember -> foundingMember.key).toArray(byte[][]::new);
+//            byte[] rs1 = asf.createVTXONodeScript(userKeys).getProgram();
 
             // Create the output and send in the hash of the script into that output.
-            TransactionOutput fo = ctx.addOutput(Coin.valueOf(4, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
-
-            TransactionInput tiz = ctx.addInput(foundingOutput);
-            foundingOutput.markAsSpent(tiz);
-            arkService.signSpendingInput(tiz);
-            fund(ctx, arkService);
+//            TransactionOutput fo = ctx.addOutput(Coin.valueOf(4, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
+//
+//            TransactionInput tiz = ctx.addInput(foundingOutput);
+//            foundingOutput.markAsSpent(tiz);
+//            arkService.signSpendingInput(tiz);
+//            fund(ctx, arkService);
+            Transaction ctx = zel.tx;
+            byte[] rs1 = zel.program;
+            TransactionOutput fo = zel.to;
 
 //            // Now let's complete and fund this transaction
 //            // Todo: this part here needs to be rewritten to work with the signing strategy
