@@ -1,7 +1,7 @@
 package ae.redtoken.iz.ark.nostrtest;
 
-import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.TransactionWitness;
+import org.bitcoinj.crypto.ECKey;
 import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
@@ -24,17 +24,25 @@ public class ArkScriptFactory {
     }
 
     public static TransactionWitness createVTXONodeUnlockWitnessScript(byte[][] userSignatures, byte[] serviceSignature, byte[] program) {
-        int i = 0;
-        TransactionWitness witness = new TransactionWitness(userSignatures.length + 3);
-        witness.setPush(i++, serviceSignature);
+//        int i = 0;
+//        TransactionWitness witness = new TransactionWitness(userSignatures.length + 3);
+//        witness.setPush(i++, serviceSignature);
+//
+//        for (byte[] userSignature : userSignatures) {
+//            witness.setPush(i++, userSignature);
+//        }
+//
+//        witness.setPush(i++, new byte[]{0x01});
+//        witness.setPush(i, program);
 
-        for (byte[] userSignature : userSignatures) {
-            witness.setPush(i++, userSignature);
-        }
+        List<byte[]> pushes = new ArrayList<>();
 
-        witness.setPush(i++, new byte[]{0x01});
-        witness.setPush(i, program);
+        pushes.add(serviceSignature);
+        pushes.addAll(Arrays.asList(userSignatures));
+        pushes.add(new byte[]{0x01});
+        pushes.add(program);
 
+        TransactionWitness witness = TransactionWitness.of(pushes);
         return witness;
     }
 
@@ -102,13 +110,13 @@ public class ArkScriptFactory {
                 .op(ScriptOpCodes.OP_ENDIF)
                 .build();
 
-        System.out.println(redeemScript.getProgram().length);
+        System.out.println(redeemScript.program().length);
 
         return redeemScript;
     }
 
     static Script createVTXONodeUnlockScript(byte[][] sigBytes, byte[] sigSByte, Script redeemScript) {
-        byte[] program = redeemScript.getProgram();
+        byte[] program = redeemScript.program();
 
         ScriptBuilder scriptBuilder = new ScriptBuilder().data(sigSByte);
 
@@ -126,7 +134,7 @@ public class ArkScriptFactory {
 
 
     static Script createVTXOLeafUnlockScript(byte[] sigAByte, byte[] sigSByte, Script redeemScript) {
-        byte[] program = redeemScript.getProgram();
+        byte[] program = redeemScript.program();
 
         Script inputScript = new ScriptBuilder()
                 .data(sigSByte)
@@ -154,7 +162,7 @@ public class ArkScriptFactory {
 
     static Script createVTXOLeafUnilateralUnlockScript(byte[] sigAByte, Script redeemScript) {
         // This is the dual signature
-        byte[] program = redeemScript.getProgram();
+        byte[] program = redeemScript.program();
 
         Script inputScript = new ScriptBuilder()
                 .data(sigAByte)
@@ -166,11 +174,21 @@ public class ArkScriptFactory {
     }
 
     public TransactionWitness createVTXOLeafColaborativeUnlockWitness(byte[] userSignature, byte[] serviceSignature, byte[] program) {
-        TransactionWitness witness = new TransactionWitness(4);
-        witness.setPush(0, serviceSignature);
-        witness.setPush(1, userSignature);
-        witness.setPush(2, new byte[]{0x01});
-        witness.setPush(3, program);
+//        TransactionWitness witness = new TransactionWitness(4);
+//        witness.setPush(0, serviceSignature);
+//        witness.setPush(1, userSignature);
+//        witness.setPush(2, new byte[]{0x01});
+//        witness.setPush(3, program);
+
+        List<byte[]> pushes = new ArrayList<>();
+
+        pushes.add(serviceSignature);
+        pushes.add(userSignature);
+        pushes.add(new byte[]{0x01});
+        pushes.add(program);
+
+        TransactionWitness witness = TransactionWitness.of(pushes);
+
 
         return witness;
     }

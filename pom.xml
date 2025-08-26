@@ -21,6 +21,5 @@
 	<packaging>pom</packaging>
 	<modules>
         <module>ae.redtoken.iz.ark.core</module>
-        <module>ae.redtoken.iz.ark.core17</module>
 	</modules>
 </project>

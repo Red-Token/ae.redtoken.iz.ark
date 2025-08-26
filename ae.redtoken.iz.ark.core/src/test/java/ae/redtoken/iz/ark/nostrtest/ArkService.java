@@ -1,10 +1,12 @@
 package ae.redtoken.iz.ark.nostrtest;
 
-import org.bitcoinj.params.AbstractBitcoinNetParams;
+//import ae.redtoken.iz.ark.nostrtest.Actor;
+
+import org.bitcoinj.core.NetworkParameters;
 
 public class ArkService extends Actor {
 
-    public ArkService(AbstractBitcoinNetParams params) {
+    public ArkService(NetworkParameters params) {
         super(params);
 
         kit.wallet().addCoinsReceivedEventListener((wallet, transaction, coin, coin1) -> {

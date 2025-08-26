@@ -1,24 +1,33 @@
 package ae.redtoken.iz.ark.nostrtest;
 
 import nostr.id.Identity;
-import org.bitcoinj.core.*;
+import org.bitcoinj.base.Coin;
+import org.bitcoinj.base.ScriptType;
+import org.bitcoinj.base.Sha256Hash;
+import org.bitcoinj.core.NetworkParameters;
+import org.bitcoinj.core.Transaction;
+import org.bitcoinj.core.TransactionInput;
+import org.bitcoinj.core.TransactionOutput;
+import org.bitcoinj.crypto.ECKey;
 import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.kits.WalletAppKit;
-import org.bitcoinj.params.AbstractBitcoinNetParams;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 public class Actor {
 
-    public WalletAppKit kit;
+    WalletAppKit kit;
     Identity identity;
-    public ECKey activeKey;
+    ECKey activeKey;
 
-    Actor(AbstractBitcoinNetParams params) {
+    Actor(NetworkParameters params) {
 //            RegTestParams params = RegTestParams.get();
 
         try {
@@ -36,11 +45,17 @@ public class Actor {
 
         this.identity = Identity.generateRandomIdentity();
         this.activeKey = this.kit.wallet().freshReceiveKey();
+
+        kit.wallet().addCoinsReceivedEventListener((wallet, transaction, coin, coin1) -> {
+            System.out.println("Received coin " + coin + " to " + wallet);
+        });
+
     }
 
 
     byte[] signInput(NetworkParameters parameters, byte[] transaction, byte[] program) {
-        Transaction tx = new Transaction(parameters, transaction);
+//        Transaction tx = new Transaction(parameters, transaction);
+        Transaction tx = Transaction.read(ByteBuffer.wrap(transaction));
         return signStack(tx.hashForSignature(0, program, Transaction.SigHash.ALL, true).getBytes());
     }
 
@@ -48,8 +63,8 @@ public class Actor {
         return new TransactionSignature(activeKey.sign(Sha256Hash.wrap(hash)), Transaction.SigHash.ALL, true).encodeToBitcoin();
     }
 
-    public void signSpendingInput(TransactionInput input) {
-        ECKey key = this.kit.wallet().findKeyFromPubKeyHash(Objects.requireNonNull(input.getConnectedOutput()).getScriptPubKey().getPubKeyHash(), Script.ScriptType.P2PKH);
+    TransactionInput signSpendingInput(TransactionInput input) {
+        ECKey key = this.kit.wallet().findKeyFromPubKeyHash(Objects.requireNonNull(input.getConnectedOutput()).getScriptPubKey().getPubKeyHash(), ScriptType.P2PKH);
 
         // 2. The P2PKH scriptPubKey (the one you're spending from)
         Script scriptPubKey = ScriptBuilder.createP2PKHOutputScript(Objects.requireNonNull(key));
@@ -69,7 +84,8 @@ public class Actor {
         // 6. Create scriptSig (the unlocking script)
         Script inputScript = ScriptBuilder.createInputScript(txSig, key);
 
-        input.setScriptSig(inputScript);
+//        input.setScriptSig(inputScript);
+        return input.withScriptSig(inputScript);
     }
 
 
@@ -78,7 +94,8 @@ public class Actor {
     }
 
     public byte[] signInputWitness(NetworkParameters params, byte[] transactionBytes, byte[] lockScriptByteCode, int index, Coin value) {
-        Transaction tx = new Transaction(params, transactionBytes);
+//        Transaction tx = new Transaction(params, transactionBytes);
+        Transaction tx = Transaction.read(ByteBuffer.wrap(transactionBytes));
 
         Sha256Hash sigHash = tx.hashForWitnessSignature(
                 index,
@@ -91,10 +108,11 @@ public class Actor {
         return signStack(sigHash.getBytes());
     }
 
-    public Map<Sha256Hash,byte[]> signStack(NetworkParameters params, AppTest2.ArkVirtualTransactionStack vtxs) {
+    public Map<Sha256Hash, byte[]> signStack(NetworkParameters params, AppTest2.ArkVirtualTransactionStack vtxs) {
 
         Map<Sha256Hash, Transaction> treeMap = new HashMap<>();
-        Transaction root = new Transaction(params, vtxs.root);
+//        Transaction root = new Transaction(params, vtxs.root);
+        Transaction root = Transaction.read(ByteBuffer.wrap(vtxs.root));
         treeMap.put(root.getTxId(), root);
         Map<Sha256Hash, byte[]> sigMap = new HashMap<>();
 
@@ -110,17 +128,18 @@ public class Actor {
 //            byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
 
         vtxs.nodes.stream().forEachOrdered(node -> {
-            Transaction t = new Transaction(params, node.transaction);
+//            Transaction t = new Transaction(params, node.transaction);
+            Transaction t = Transaction.read(ByteBuffer.wrap(node.transaction));
             treeMap.put(t.getTxId(), t);
 
-            t.getInputs().stream().filter(ti -> treeMap.containsKey(ti.getOutpoint().getHash())).forEachOrdered(
-                    ti ->  {
-                        TransactionOutput to = AppTest2.findOutputWitness(treeMap.get(ti.getOutpoint().getHash()), node.program);
+            t.getInputs().stream().filter(ti -> treeMap.containsKey(ti.getOutpoint().hash())).forEachOrdered(
+                    ti -> {
+                        TransactionOutput to = AppTest2.findOutputWitness(treeMap.get(ti.getOutpoint().hash()), node.program);
                         sigMap.put(Sha256Hash.of(node.program), signInputWitness(params, node.transaction, node.program, ti.getIndex(), to.getValue()));
                     }
             );
 
-                    System.out.println(t);
+            System.out.println(t);
 //
 //
 //            byte[] sigABin = signInputWitness(params, node.transaction, node.program, node.index, Coin.valueOf(node.value));

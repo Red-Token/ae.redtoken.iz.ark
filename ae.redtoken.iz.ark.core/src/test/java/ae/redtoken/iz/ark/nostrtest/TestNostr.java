@@ -14,17 +14,17 @@ import nostr.api.factory.EventFactory;
 import nostr.base.PublicKey;
 import nostr.event.BaseTag;
 import nostr.event.Kind;
-import nostr.event.impl.*;
+import nostr.event.impl.Filters;
+import nostr.event.impl.GenericEvent;
+import nostr.event.impl.TextNoteEvent;
 import nostr.id.Identity;
 import org.junit.jupiter.api.Test;
 
-import java.util.Base64;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 
 public class TestNostr {

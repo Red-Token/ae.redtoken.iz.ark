@@ -77,17 +77,12 @@
         <dependency>
             <groupId>org.bitcoinj</groupId>
             <artifactId>bitcoinj-core</artifactId>
-            <version>0.17-alpha1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.bitcoinj</groupId>
-            <artifactId>bitcoinj-core</artifactId>
-            <version>0.16.5</version>
+            <version>0.17</version>
         </dependency>
         <dependency>
             <groupId>org.bitcoin</groupId>
             <artifactId>org.bitcoin.tfw.ltbc.client</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
+            <version>0.0.1</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
