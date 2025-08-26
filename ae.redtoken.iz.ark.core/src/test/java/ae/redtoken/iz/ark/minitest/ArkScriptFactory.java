@@ -1,4 +1,4 @@
-package ae.redtoken.iz.ark.nostrtest;
+package ae.redtoken.iz.ark.minitest;
 
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.TransactionWitness;
@@ -7,9 +7,7 @@ import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
 import org.bitcoinj.script.ScriptOpCodes;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 public class ArkScriptFactory {
 

@@ -1,5 +1,8 @@
-package ae.redtoken.iz.ark.nostrtest;
+package ae.redtoken.iz.ark.minitest;
 
+//import ae.redtoken.iz.ark.nostrtest.Actor;
+
+import ae.redtoken.iz.ark.nostrtest.AppTest2;
 import org.bitcoinj.core.Sha256Hash;
 import org.bitcoinj.core.TransactionOutput;
 import org.bitcoinj.params.AbstractBitcoinNetParams;
@@ -12,7 +15,7 @@ import java.util.stream.Collectors;
 
 public class ArkUser extends Actor {
     ArkScriptFactory asf;
-    AppTest2.ArkTree tree;
+    //    AppTest2.ArkTree tree;
     Collection<TransactionOutput> unspentVTXOs;
 
     public ArkUser(AbstractBitcoinNetParams params) {
@@ -27,13 +30,13 @@ public class ArkUser extends Actor {
         return ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(getVTXOLeafScript().getProgram()));
     }
 
-    public void setNewTree(AppTest2.ArkTree tree) {
-        // print out the leafs
-        this.tree = tree;
-
-        unspentVTXOs = tree.nodes.values().stream()
-                .flatMap(transaction -> transaction.getOutputs().stream())
-                .filter(t -> Arrays.equals(t.getScriptBytes(), getLockScript().getProgram()))
-                .collect(Collectors.toList());
-    }
+//    public void setNewTree(AppTest2.ArkTree tree) {
+//        // print out the leafs
+//        this.tree = tree;
+//
+//        unspentVTXOs = tree.nodes.values().stream()
+//                .flatMap(transaction -> transaction.getOutputs().stream())
+//                .filter(t -> Arrays.equals(t.getScriptBytes(), getLockScript().getProgram()))
+//                .collect(Collectors.toList());
+//    }
 }

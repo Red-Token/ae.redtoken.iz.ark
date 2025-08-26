@@ -7,10 +7,10 @@
         <version>0.0.2</version>
     </parent>
 
-    <artifactId>ae.redtoken.iz.ark.core</artifactId>
+    <artifactId>ae.redtoken.iz.ark.core17</artifactId>
     <packaging>jar</packaging>
 
-    <name>ae.redtoken.iz.ark.core</name>
+    <name>ae.redtoken.iz.ark.core17</name>
     <url>http://maven.apache.org</url>
 
     <properties>
@@ -80,14 +80,9 @@
             <version>0.17-alpha1</version>
         </dependency>
         <dependency>
-            <groupId>org.bitcoinj</groupId>
-            <artifactId>bitcoinj-core</artifactId>
-            <version>0.16.5</version>
-        </dependency>
-        <dependency>
             <groupId>org.bitcoin</groupId>
             <artifactId>org.bitcoin.tfw.ltbc.client</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
+            <version>0.0.1</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

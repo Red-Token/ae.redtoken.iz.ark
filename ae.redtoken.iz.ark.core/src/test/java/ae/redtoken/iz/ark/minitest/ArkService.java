@@ -1,5 +1,6 @@
-package ae.redtoken.iz.ark.nostrtest;
+package ae.redtoken.iz.ark.minitest;
 
+//import ae.redtoken.iz.ark.nostrtest.Actor;
 import org.bitcoinj.params.AbstractBitcoinNetParams;
 
 public class ArkService extends Actor {

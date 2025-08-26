@@ -5,7 +5,10 @@ import nostr.event.Kind;
 import nostr.event.impl.Filters;
 import nostr.event.impl.GenericEvent;
 import org.bitcoin.tfw.ltbc.tc.LTBCMainTestCase;
+import org.bitcoinj.base.Coin;
+import org.bitcoinj.base.Sha256Hash;
 import org.bitcoinj.core.*;
+import org.bitcoinj.crypto.ECKey;
 import org.bitcoinj.params.RegTestParams;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
@@ -20,12 +23,13 @@ import java.util.stream.Stream;
 
 import static ae.redtoken.iz.ark.nostrtest.TestNostr.RELAYS;
 
+
 /**
  * Unit test for simple App.
  */
 public class AppTest2 extends LTBCMainTestCase {
 
-    static class ArkRoundFactory {
+    public static class ArkRoundFactory {
         final NetworkParameters params;
         final ArkScriptFactory asf;
         final ArkService arkService;
@@ -163,7 +167,7 @@ public class AppTest2 extends LTBCMainTestCase {
     record FoundingMember(Coin value, byte[] key) {
     }
 
-    static class SignatureRequest {
+    public static class SignatureRequest {
         final byte[] program;
         final Collection<byte[]> signatures = new ArrayList<>();
 
@@ -181,7 +185,7 @@ public class AppTest2 extends LTBCMainTestCase {
         return tx.getOutputs().stream().filter(o -> Arrays.equals(o.getScriptBytes(), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs)).getProgram())).findFirst().orElseThrow();
     }
 
-    static class ArkVirtualTransactionNode {
+    public static class ArkVirtualTransactionNode {
         final byte[] transaction;
         final byte[] program;
 
@@ -191,7 +195,7 @@ public class AppTest2 extends LTBCMainTestCase {
         }
     }
 
-    static class ArkVirtualTransactionStack {
+    public static class ArkVirtualTransactionStack {
         final byte[] root;
         final Collection<ArkVirtualTransactionNode> nodes;
 

@@ -1,15 +1,13 @@
 package ae.redtoken.iz.ark.nostrtest;
 
-import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.TransactionWitness;
+import org.bitcoinj.crypto.ECKey;
 import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
 import org.bitcoinj.script.ScriptOpCodes;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 public class ArkScriptFactory {
 
