@@ -16,7 +16,7 @@ import java.util.Arrays;
 /**
  * Unit test for simple App.
  */
-public class AppTestW extends LTBCMainTestCase {
+public class AppTestPKSW extends LTBCMainTestCase {
 
     @Test
     public void test2() throws Exception {

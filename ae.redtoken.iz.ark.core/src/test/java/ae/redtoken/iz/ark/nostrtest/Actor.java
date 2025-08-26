@@ -93,7 +93,7 @@ public class Actor {
         return activeKey.getPubKey();
     }
 
-    public byte[] signInputWitness(NetworkParameters params, byte[] transactionBytes, byte[] lockScriptByteCode, int index, Coin value) {
+    public byte[] signInputWitness(byte[] transactionBytes, byte[] lockScriptByteCode, int index, Coin value) {
 //        Transaction tx = new Transaction(params, transactionBytes);
         Transaction tx = Transaction.read(ByteBuffer.wrap(transactionBytes));
 
@@ -135,7 +135,7 @@ public class Actor {
             t.getInputs().stream().filter(ti -> treeMap.containsKey(ti.getOutpoint().hash())).forEachOrdered(
                     ti -> {
                         TransactionOutput to = AppTest2.findOutputWitness(treeMap.get(ti.getOutpoint().hash()), node.program);
-                        sigMap.put(Sha256Hash.of(node.program), signInputWitness(params, node.transaction, node.program, ti.getIndex(), to.getValue()));
+                        sigMap.put(Sha256Hash.of(node.program), signInputWitness(node.transaction, node.program, ti.getIndex(), to.getValue()));
                     }
             );
 

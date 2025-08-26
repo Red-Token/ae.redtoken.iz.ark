@@ -376,7 +376,6 @@ public class AppTest2 extends LTBCMainTestCase {
             ArkInitiate aim = new ArkInitiate(Coin.valueOf(0, 10));
 
 
-
             ///  Create the root node
             // Create the transaction
 //            Transaction ctx = new Transaction(params);
@@ -391,15 +390,21 @@ public class AppTest2 extends LTBCMainTestCase {
             ArkRoundFactory arf = new ArkRoundFactory(params, asf, arkService);
 
             // This is the output that is used to FUND the rootNode (the fundingInput in the rootNode takes its capital from here
-            TransactionOutput fundingOutput;
+            TransactionOutput arkFundingOutput;
+
+//            Script arkFundingRs = ScriptBuilder.createP2WPKHOutputScript(arkService.activeKey);
+            Script arkFundingRs = ScriptBuilder.createP2PKHOutputScript(arkService.activeKey);
+
 
             // Let's fund the founding output
             {
-                Transaction t = new Transaction();
-                t.setVersion(2);
-                fundingOutput = t.addOutput(Coin.valueOf(4, 0), arkService.kit.wallet().freshReceiveAddress());
+                Transaction arkFundingTx = new Transaction();
+                arkFundingTx.setVersion(2);
 
-                SendRequest sr = SendRequest.forTx(t);
+//                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkService.kit.wallet().freshReceiveAddress());
+                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkFundingRs);
+
+                SendRequest sr = SendRequest.forTx(arkFundingTx);
                 sr.feePerKb = Coin.valueOf(1000);
                 arkService.kit.wallet().completeTx(sr);
 
@@ -431,12 +436,30 @@ public class AppTest2 extends LTBCMainTestCase {
             // Create the output and send in the hash of the script into that output.
             TransactionOutput fo = rootTx.addOutput(value, ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
 
-            TransactionInput rootTi = rootTx.addInput(fundingOutput);
-            fundingOutput.markAsSpent(rootTi);
 
             // TODO: Workaround, since we dont use Witness transactions we need to fund before we create the subnodes, change this!
             // Sign the Input, ie Yes lets go
-            rootTx.replaceInput(rootTi.getIndex(), arkService.signSpendingInput(rootTi));
+//            rootTx.replaceInput(rootTi.getIndex(), arkService.signSpendingInput(rootTi));
+            {
+//                TransactionInput rootTi = rootTx.addInput(arkFundingOutput);
+                TransactionInput rootTi = rootTx.addInput(arkFundingOutput);
+                arkFundingOutput.markAsSpent(rootTi);
+
+                rootTx.replaceInput(rootTi.getIndex(), arkService.signSpendingInput(rootTi));
+
+//                TransactionSignature ts = rootTx.calculateWitnessSignature(
+//                        rootTi.getIndex(),
+//                        arkService.activeKey,
+//                        arkFundingOutput.getScriptPubKey(),
+//                        arkFundingOutput.getValue(),
+//                        Transaction.SigHash.ALL,
+//                        true
+//                );
+//
+//                TransactionWitness witness = TransactionWitness.redeemP2WPKH(ts, arkService.activeKey);
+//                setWitness(rootTi, witness);
+            }
+//            rootTx.replaceInput(rootTi.getIndex(), rootTi.withWitness(witness));
 
             // Add a feeInput to transaction.
             fund(rootTx, arkService);
@@ -689,7 +712,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 fund(vtx1_1_1, arkService);
 
                 // Lets rool!
-                byte[] sigABin = alice.signInputWitness(params, vtx1_1_1.serialize(), rs1_1_1, ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
+                byte[] sigABin = alice.signInputWitness(vtx1_1_1.serialize(), rs1_1_1, ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
 
                 // Collaborative exit request
                 // Set of UTXO:s to exit, OutPoint
@@ -712,7 +735,7 @@ public class AppTest2 extends LTBCMainTestCase {
                     }
 
                     to.markAsSpent(ti);
-                    signatures.put(index, arkService.signInputWitness(params, tx.serialize(), programMap.get(index).program, index, to.getValue()));
+                    signatures.put(index, arkService.signInputWitness(tx.serialize(), programMap.get(index).program, index, to.getValue()));
                 }
 
 
