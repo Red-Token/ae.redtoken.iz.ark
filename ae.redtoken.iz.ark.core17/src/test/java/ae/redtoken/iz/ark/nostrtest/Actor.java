@@ -60,7 +60,7 @@ public class Actor {
         return new TransactionSignature(activeKey.sign(Sha256Hash.wrap(hash)), Transaction.SigHash.ALL, true).encodeToBitcoin();
     }
 
-    void signSpendingInput(TransactionInput input) {
+    TransactionInput signSpendingInput(TransactionInput input) {
         ECKey key = this.kit.wallet().findKeyFromPubKeyHash(Objects.requireNonNull(input.getConnectedOutput()).getScriptPubKey().getPubKeyHash(), ScriptType.P2PKH);
 
         // 2. The P2PKH scriptPubKey (the one you're spending from)
@@ -81,7 +81,8 @@ public class Actor {
         // 6. Create scriptSig (the unlocking script)
         Script inputScript = ScriptBuilder.createInputScript(txSig, key);
 
-        input.setScriptSig(inputScript);
+//        input.setScriptSig(inputScript);
+        return input.withScriptSig(inputScript);
     }
 
 
@@ -91,7 +92,7 @@ public class Actor {
 
     public byte[] signInputWitness(NetworkParameters params, byte[] transactionBytes, byte[] lockScriptByteCode, int index, Coin value) {
 //        Transaction tx = new Transaction(params, transactionBytes);
-                Transaction tx = Transaction.read(ByteBuffer.wrap(transactionBytes));
+        Transaction tx = Transaction.read(ByteBuffer.wrap(transactionBytes));
 
         Sha256Hash sigHash = tx.hashForWitnessSignature(
                 index,

@@ -107,7 +107,8 @@ public class AppTestW extends LTBCMainTestCase {
             byte[] arkServiceSig = arkService.signInputWitness(params, t2.serialize(), lockScriptByteCode, input.getIndex(), output.getValue());
 
             TransactionWitness witness = asf.createVTXOLeafColaborativeUnlockWitness(aliceSig, arkServiceSig, lockScriptByteCode);
-            input.setWitness(witness);
+//            input.setWitness(witness);
+            AppTest2.setWitness(input, witness);
             send(t2, arkService, alice);
         }
 

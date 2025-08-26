@@ -135,8 +135,7 @@ public class AppTest2 extends LTBCMainTestCase {
             TransactionOutput output = arkService.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getValue().equals(Coin.valueOf(0, 1)) && transactionOutput.isAvailableForSpending()).findFirst().orElseThrow();
             TransactionInput fti1 = tx.addInput(output);
             output.markAsSpent(fti1);
-
-            arkService.signSpendingInput(fti1);
+            tx.replaceInput(fti1.getIndex(), arkService.signSpendingInput(fti1));
 //
 //        ECKey key = arkService.kit.wallet().findKeyFromPubKeyHash(output.getScriptPubKey().getPubKeyHash(), Script.ScriptType.P2PKH);
 //
@@ -383,7 +382,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
             TransactionInput tiz = ctx.addInput(foundingOutput);
             foundingOutput.markAsSpent(tiz);
-            arkService.signSpendingInput(tiz);
+            ctx.replaceInput(tiz.getIndex(), arkService.signSpendingInput(tiz));
             fund(ctx, arkService);
 
 //            // Now let's complete and fund this transaction
@@ -564,7 +563,9 @@ public class AppTest2 extends LTBCMainTestCase {
                             },
                             arkServiceSignatures.get(programHash),
                             program);
-                    ti1.setWitness(witness);
+
+                    // TODO Ugly Betty
+                    setWitness(ti1, witness);
                 }
 
                 // Sign the input by everybody
@@ -578,7 +579,7 @@ public class AppTest2 extends LTBCMainTestCase {
                             },
                             arkServiceSignatures.get(programHash),
                             program);
-                    ti_1_1.setWitness(witness);
+                    setWitness(ti_1_1, witness);
                 }
 
                 // Sign the input by everybody
@@ -594,7 +595,7 @@ public class AppTest2 extends LTBCMainTestCase {
                             arkServiceSignatures.get(programHash),
                             program);
 //                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin}, sigSBin, program);
-                    ti_1_2.setWitness(witness);
+                    setWitness(ti_1_2, witness);
                 }
 
                 // Populate the tree with signatures
@@ -677,7 +678,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
                 // Sign the input by everybody
                 {
-                    ti_1_1_1.setWitness(asf.createVTXOLeafColaborativeUnlockWitness(sigABin, signatures.get(ti_1_1_1.getIndex()), rs1_1_1));
+                    setWitness(ti_1_1_1, asf.createVTXOLeafColaborativeUnlockWitness(sigABin, signatures.get(ti_1_1_1.getIndex()), rs1_1_1));
                 }
 
                 // Let's make an on-chain charity output
@@ -912,6 +913,10 @@ public class AppTest2 extends LTBCMainTestCase {
 
     }
 
+    public static void setWitness(TransactionInput ti, TransactionWitness witness) {
+        Objects.requireNonNull(ti.getParentTransaction()).replaceInput(ti.getIndex(), ti.withWitness(witness));
+    }
+
     private void fund(Transaction tx, Actor arkService) {
         System.out.println("To be spent: " + arkService.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getValue().equals(Coin.valueOf(0, 1))).count());
 
@@ -919,8 +924,7 @@ public class AppTest2 extends LTBCMainTestCase {
         TransactionOutput output = arkService.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getValue().equals(Coin.valueOf(0, 1)) && transactionOutput.isAvailableForSpending()).findFirst().orElseThrow();
         TransactionInput fti1 = tx.addInput(output);
         output.markAsSpent(fti1);
-
-        arkService.signSpendingInput(fti1);
+        tx.replaceInput(fti1.getIndex(), arkService.signSpendingInput(fti1));
 //
 //        ECKey key = arkService.kit.wallet().findKeyFromPubKeyHash(output.getScriptPubKey().getPubKeyHash(), Script.ScriptType.P2PKH);
 //
