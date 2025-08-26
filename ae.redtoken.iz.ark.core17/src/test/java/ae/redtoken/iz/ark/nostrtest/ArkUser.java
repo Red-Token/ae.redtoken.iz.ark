@@ -26,7 +26,7 @@ public class ArkUser extends Actor {
     }
 
     Script getLockScript() {
-        return ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(getVTXOLeafScript().getProgram()));
+        return ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(getVTXOLeafScript().program()));
     }
 
     public void setNewTree(AppTest2.ArkTree tree) {
@@ -35,7 +35,7 @@ public class ArkUser extends Actor {
 
         unspentVTXOs = tree.nodes.values().stream()
                 .flatMap(transaction -> transaction.getOutputs().stream())
-                .filter(t -> Arrays.equals(t.getScriptBytes(), getLockScript().getProgram()))
+                .filter(t -> Arrays.equals(t.getScriptBytes(), getLockScript().program()))
                 .collect(Collectors.toList());
     }
 }

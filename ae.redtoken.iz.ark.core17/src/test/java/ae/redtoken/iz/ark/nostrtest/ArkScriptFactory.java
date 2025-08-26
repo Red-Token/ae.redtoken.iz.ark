@@ -110,13 +110,13 @@ public class ArkScriptFactory {
                 .op(ScriptOpCodes.OP_ENDIF)
                 .build();
 
-        System.out.println(redeemScript.getProgram().length);
+        System.out.println(redeemScript.program().length);
 
         return redeemScript;
     }
 
     static Script createVTXONodeUnlockScript(byte[][] sigBytes, byte[] sigSByte, Script redeemScript) {
-        byte[] program = redeemScript.getProgram();
+        byte[] program = redeemScript.program();
 
         ScriptBuilder scriptBuilder = new ScriptBuilder().data(sigSByte);
 
@@ -134,7 +134,7 @@ public class ArkScriptFactory {
 
 
     static Script createVTXOLeafUnlockScript(byte[] sigAByte, byte[] sigSByte, Script redeemScript) {
-        byte[] program = redeemScript.getProgram();
+        byte[] program = redeemScript.program();
 
         Script inputScript = new ScriptBuilder()
                 .data(sigSByte)
@@ -162,7 +162,7 @@ public class ArkScriptFactory {
 
     static Script createVTXOLeafUnilateralUnlockScript(byte[] sigAByte, Script redeemScript) {
         // This is the dual signature
-        byte[] program = redeemScript.getProgram();
+        byte[] program = redeemScript.program();
 
         Script inputScript = new ScriptBuilder()
                 .data(sigAByte)

@@ -3,11 +3,7 @@ package ae.redtoken.iz.ark.nostrtest;
 import org.bitcoin.tfw.ltbc.tc.LTBCMainTestCase;
 import org.bitcoinj.base.Coin;
 import org.bitcoinj.base.Sha256Hash;
-import org.bitcoinj.core.NetworkParameters;
-import org.bitcoinj.core.Transaction;
-import org.bitcoinj.core.TransactionInput;
-import org.bitcoinj.core.TransactionOutput;
-import org.bitcoinj.core.TransactionWitness;
+import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.ECKey;
 import org.bitcoinj.params.RegTestParams;
 import org.bitcoinj.script.ScriptBuilder;
@@ -86,7 +82,7 @@ public class AppTestW extends LTBCMainTestCase {
 
         // Multisig PSW test
         {
-            byte[] lockScriptByteCode = asf.createVTXOLeafScript(alice.getActivePublicKey()).getProgram();
+            byte[] lockScriptByteCode = asf.createVTXOLeafScript(alice.getActivePublicKey()).program();
 
 //            Transaction t = new Transaction(params);
             Transaction t = new Transaction();
@@ -107,8 +103,8 @@ public class AppTestW extends LTBCMainTestCase {
             TransactionInput input = t2.addInput(output);
 
             //TODO: Not sure BAAHL will not eat me for this, chatGPT says it does not
-            byte[] aliceSig = alice.signInputWitness(params, t2.bitcoinSerialize(), lockScriptByteCode, input.getIndex(), output.getValue());
-            byte[] arkServiceSig = arkService.signInputWitness(params, t2.bitcoinSerialize(), lockScriptByteCode, input.getIndex(), output.getValue());
+            byte[] aliceSig = alice.signInputWitness(params, t2.serialize(), lockScriptByteCode, input.getIndex(), output.getValue());
+            byte[] arkServiceSig = arkService.signInputWitness(params, t2.serialize(), lockScriptByteCode, input.getIndex(), output.getValue());
 
             TransactionWitness witness = asf.createVTXOLeafColaborativeUnlockWitness(aliceSig, arkServiceSig, lockScriptByteCode);
             input.setWitness(witness);

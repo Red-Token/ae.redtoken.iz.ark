@@ -128,9 +128,9 @@ public class Actor {
             Transaction t = Transaction.read(ByteBuffer.wrap(node.transaction));
             treeMap.put(t.getTxId(), t);
 
-            t.getInputs().stream().filter(ti -> treeMap.containsKey(ti.getOutpoint().getHash())).forEachOrdered(
+            t.getInputs().stream().filter(ti -> treeMap.containsKey(ti.getOutpoint().hash())).forEachOrdered(
                     ti -> {
-                        TransactionOutput to = AppTest2.findOutputWitness(treeMap.get(ti.getOutpoint().getHash()), node.program);
+                        TransactionOutput to = AppTest2.findOutputWitness(treeMap.get(ti.getOutpoint().hash()), node.program);
                         sigMap.put(Sha256Hash.of(node.program), signInputWitness(params, node.transaction, node.program, ti.getIndex(), to.getValue()));
                     }
             );
