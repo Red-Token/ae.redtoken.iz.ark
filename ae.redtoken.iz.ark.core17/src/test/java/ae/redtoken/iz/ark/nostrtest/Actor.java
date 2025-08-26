@@ -12,6 +12,7 @@ import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,7 +51,8 @@ public class Actor {
 
 
     byte[] signInput(NetworkParameters parameters, byte[] transaction, byte[] program) {
-        Transaction tx = new Transaction(parameters, transaction);
+//        Transaction tx = new Transaction(parameters, transaction);
+        Transaction tx = Transaction.read(ByteBuffer.wrap(transaction));
         return signStack(tx.hashForSignature(0, program, Transaction.SigHash.ALL, true).getBytes());
     }
 
@@ -88,7 +90,8 @@ public class Actor {
     }
 
     public byte[] signInputWitness(NetworkParameters params, byte[] transactionBytes, byte[] lockScriptByteCode, int index, Coin value) {
-        Transaction tx = new Transaction(params, transactionBytes);
+//        Transaction tx = new Transaction(params, transactionBytes);
+                Transaction tx = Transaction.read(ByteBuffer.wrap(transactionBytes));
 
         Sha256Hash sigHash = tx.hashForWitnessSignature(
                 index,
@@ -101,10 +104,11 @@ public class Actor {
         return signStack(sigHash.getBytes());
     }
 
-    public Map<Sha256Hash,byte[]> signStack(NetworkParameters params, AppTest2.ArkVirtualTransactionStack vtxs) {
+    public Map<Sha256Hash, byte[]> signStack(NetworkParameters params, AppTest2.ArkVirtualTransactionStack vtxs) {
 
         Map<Sha256Hash, Transaction> treeMap = new HashMap<>();
-        Transaction root = new Transaction(params, vtxs.root);
+//        Transaction root = new Transaction(params, vtxs.root);
+        Transaction root = Transaction.read(ByteBuffer.wrap(vtxs.root));
         treeMap.put(root.getTxId(), root);
         Map<Sha256Hash, byte[]> sigMap = new HashMap<>();
 
@@ -120,17 +124,18 @@ public class Actor {
 //            byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
 
         vtxs.nodes.stream().forEachOrdered(node -> {
-            Transaction t = new Transaction(params, node.transaction);
+//            Transaction t = new Transaction(params, node.transaction);
+            Transaction t = Transaction.read(ByteBuffer.wrap(node.transaction));
             treeMap.put(t.getTxId(), t);
 
             t.getInputs().stream().filter(ti -> treeMap.containsKey(ti.getOutpoint().getHash())).forEachOrdered(
-                    ti ->  {
+                    ti -> {
                         TransactionOutput to = AppTest2.findOutputWitness(treeMap.get(ti.getOutpoint().getHash()), node.program);
                         sigMap.put(Sha256Hash.of(node.program), signInputWitness(params, node.transaction, node.program, ti.getIndex(), to.getValue()));
                     }
             );
 
-                    System.out.println(t);
+            System.out.println(t);
 //
 //
 //            byte[] sigABin = signInputWitness(params, node.transaction, node.program, node.index, Coin.valueOf(node.value));

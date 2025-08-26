@@ -16,6 +16,7 @@ import org.bitcoinj.wallet.SendRequest;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -57,7 +58,8 @@ public class AppTest2 extends LTBCMainTestCase {
             ArkTree tree = new ArkTree();
 
             // rec create the tree
-            Transaction tx = new Transaction(params);
+            Transaction tx = new Transaction();
+//            Transaction tx = new Transaction(params);
             tx.setVersion(2);
 
             foundingOutputs.forEach(tx::addInput);
@@ -79,7 +81,8 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             // rec create the tree
-            Transaction tx = new Transaction(params);
+//            Transaction tx = new Transaction(params);
+            Transaction tx = new Transaction();
             tx.setVersion(2);
             TransactionInput ti = tx.addInput(output);
             output.markAsSpent(ti);
@@ -283,7 +286,8 @@ public class AppTest2 extends LTBCMainTestCase {
         }
 
         // Create funding outputs
-        Transaction ftx = new Transaction(params);
+        Transaction ftx = new Transaction();
+//        Transaction ftx = new Transaction(params);
         ftx.setVersion(2);
 
         for (int i = 0; i < 10; i++)
@@ -332,7 +336,8 @@ public class AppTest2 extends LTBCMainTestCase {
         {
             ///  Create the root node
             // Create the transaction
-            Transaction ctx = new Transaction(params);
+//            Transaction ctx = new Transaction(params);
+            Transaction ctx = new Transaction();
             ctx.setVersion(2);
 
             byte[][] userKeys = List.of(alice, bob, carol, david).stream().map(Actor::getActivePublicKey).toArray(byte[][]::new);
@@ -342,7 +347,8 @@ public class AppTest2 extends LTBCMainTestCase {
 
             // Lets create the founding output
             {
-                Transaction t = new Transaction(params);
+                Transaction t = new Transaction();
+//                Transaction t = new Transaction(params);
                 t.setVersion(2);
                 foundingOutput = t.addOutput(Coin.valueOf(4, 0), arkService.kit.wallet().freshReceiveAddress());
 
@@ -627,7 +633,8 @@ public class AppTest2 extends LTBCMainTestCase {
 
                 // Collaborative exit
                 // Agreed exit for A
-                Transaction vtx1_1_1 = new Transaction(params);
+                Transaction vtx1_1_1 = new Transaction();
+//                Transaction vtx1_1_1 = new Transaction(params);
                 vtx1_1_1.setVersion(2);
 
                 // Create the output and send in the hash of the script into that output.
@@ -649,7 +656,8 @@ public class AppTest2 extends LTBCMainTestCase {
 
                 Map<Integer, SignatureRequest> programMap = Map.of(ti_1_1_1.getIndex(), new SignatureRequest(rs1_1_1, sigABin));
 
-                Transaction tx = new Transaction(params, vtx1_1_1.bitcoinSerialize());
+                Transaction tx = Transaction.read(ByteBuffer.wrap(vtx1_1_1.bitcoinSerialize()));
+//                Transaction tx = new Transaction(params, vtx1_1_1.bitcoinSerialize());
                 Map<Integer, byte[]> signatures = new HashMap<>();
 
                 tree.nodes.put(vtx1_1_1.getTxId(), vtx1_1_1);

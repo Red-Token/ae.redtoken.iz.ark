@@ -56,7 +56,8 @@ public class AppTestW extends LTBCMainTestCase {
         }
 
         // Create funding outputs
-        Transaction ftx = new Transaction(params);
+//        Transaction ftx = new Transaction(params);
+        Transaction ftx = new Transaction();
         ftx.setVersion(2);
 
         for (int i = 0; i < 10; i++)
@@ -87,7 +88,8 @@ public class AppTestW extends LTBCMainTestCase {
         {
             byte[] lockScriptByteCode = asf.createVTXOLeafScript(alice.getActivePublicKey()).getProgram();
 
-            Transaction t = new Transaction(params);
+//            Transaction t = new Transaction(params);
+            Transaction t = new Transaction();
             t.setVersion(2);
 
             TransactionOutput output = t.addOutput(Coin.valueOf(0, 90), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(lockScriptByteCode)));
@@ -99,7 +101,8 @@ public class AppTestW extends LTBCMainTestCase {
             send(t, arkService, alice);
             // Now lets spend it and give it to alice
 
-            Transaction t2 = new Transaction(params);
+            Transaction t2 = new Transaction();
+//            Transaction t2 = new Transaction(params);
             t2.addOutput(Coin.valueOf(80_000), alice.kit.wallet().freshReceiveAddress()); // change
             TransactionInput input = t2.addInput(output);
 

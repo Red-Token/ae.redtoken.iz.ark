@@ -7,7 +7,9 @@ import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
 import org.bitcoinj.script.ScriptOpCodes;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class ArkScriptFactory {
 
@@ -22,17 +24,25 @@ public class ArkScriptFactory {
     }
 
     public static TransactionWitness createVTXONodeUnlockWitnessScript(byte[][] userSignatures, byte[] serviceSignature, byte[] program) {
-        int i = 0;
-        TransactionWitness witness = new TransactionWitness(userSignatures.length + 3);
-        witness.setPush(i++, serviceSignature);
+//        int i = 0;
+//        TransactionWitness witness = new TransactionWitness(userSignatures.length + 3);
+//        witness.setPush(i++, serviceSignature);
+//
+//        for (byte[] userSignature : userSignatures) {
+//            witness.setPush(i++, userSignature);
+//        }
+//
+//        witness.setPush(i++, new byte[]{0x01});
+//        witness.setPush(i, program);
 
-        for (byte[] userSignature : userSignatures) {
-            witness.setPush(i++, userSignature);
-        }
+        List<byte[]> pushes = new ArrayList<>();
 
-        witness.setPush(i++, new byte[]{0x01});
-        witness.setPush(i, program);
+        pushes.add(serviceSignature);
+        pushes.addAll(Arrays.asList(userSignatures));
+        pushes.add(new byte[]{0x01});
+        pushes.add(program);
 
+        TransactionWitness witness = TransactionWitness.of(pushes);
         return witness;
     }
 
@@ -164,11 +174,21 @@ public class ArkScriptFactory {
     }
 
     public TransactionWitness createVTXOLeafColaborativeUnlockWitness(byte[] userSignature, byte[] serviceSignature, byte[] program) {
-        TransactionWitness witness = new TransactionWitness(4);
-        witness.setPush(0, serviceSignature);
-        witness.setPush(1, userSignature);
-        witness.setPush(2, new byte[]{0x01});
-        witness.setPush(3, program);
+//        TransactionWitness witness = new TransactionWitness(4);
+//        witness.setPush(0, serviceSignature);
+//        witness.setPush(1, userSignature);
+//        witness.setPush(2, new byte[]{0x01});
+//        witness.setPush(3, program);
+
+        List<byte[]> pushes = new ArrayList<>();
+
+        pushes.add(serviceSignature);
+        pushes.add(userSignature);
+        pushes.add(new byte[]{0x01});
+        pushes.add(program);
+
+        TransactionWitness witness = TransactionWitness.of(pushes);
+
 
         return witness;
     }
