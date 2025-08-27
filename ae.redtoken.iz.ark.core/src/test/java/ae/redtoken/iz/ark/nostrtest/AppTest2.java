@@ -83,7 +83,6 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             // rec create the tree
-//            Transaction tx = new Transaction(params);
             Transaction tx = new Transaction();
             tx.setVersion(2);
             TransactionInput ti = tx.addInput(output);
@@ -411,12 +410,6 @@ public class AppTest2 extends LTBCMainTestCase {
             // Create the output and send in the hash of the script into that output.
             TransactionOutput fo = rootTx.addOutput(value, ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
 
-
-            // TODO: Workaround, since we dont use Witness transactions we need to fund before we create the subnodes, change this!
-            // Sign the Input, ie Yes lets go
-//            rootTx.replaceInput(rootTi.getIndex(), arkService.signSpendingInput(rootTi));
-
-//            byte[] witnessBytes;
             TransactionInput rootTi = rootTx.addInput(arkFundingOutput);
             arkFundingOutput.markAsSpent(rootTi);
 
@@ -486,34 +479,41 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Connect the input
                 TransactionInput ti_1_2 = vtx1_2.getInput(0);
 
-                // Fund the transaction
-
+                // Alice and Bobs branch
                 ArkVirtualTransactionStack vtxs_1_1 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
                         new ArkVirtualTransactionNode(vtx1.serialize(), rs1),
                         new ArkVirtualTransactionNode(vtx1_1.serialize(), rs1_1)
                 ));
 
+                // Alice signs the tree
                 Map<Sha256Hash, byte[]> aliceSignatures = alice.signStack(vtxs_1_1);
+
+                // Bob signs the tree
                 Map<Sha256Hash, byte[]> bobSignatures = bob.signStack(vtxs_1_1);
 
+                // Carols and Davids branch
                 ArkVirtualTransactionStack vtxs_1_2 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
                         new ArkVirtualTransactionNode(vtx1.serialize(), rs1),
                         new ArkVirtualTransactionNode(vtx1_2.serialize(), rs1_2)
                 ));
 
+                // Carol signs the tree
                 Map<Sha256Hash, byte[]> carolSignatures = carol.signStack(vtxs_1_2);
+
+                // David signs the tree
                 Map<Sha256Hash, byte[]> davidSignatures = david.signStack(vtxs_1_2);
 
-                //Lets do this for S too
+                // Service provides branch
                 ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
                         new ArkVirtualTransactionNode(vtx1.serialize(), rs1),
                         new ArkVirtualTransactionNode(vtx1_1.serialize(), rs1_1),
                         new ArkVirtualTransactionNode(vtx1_2.serialize(), rs1_2)
                 ));
 
+                // S signs the tree
                 Map<Sha256Hash, byte[]> arkServiceSignatures = arkService.signStack(vtxs_full);
 
-                // Sign it
+                // Add the signatures to the root node
                 {
                     byte[] program = rs1;
 
