@@ -318,7 +318,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
         // Here we have one ASF for all the users
         final ArkScriptFactory asf = new ArkScriptFactory(seqLockBlocks, timeLockBlocks, keyS.getPubKey());
-        final Map<Sha256Hash, byte[]> programs = new HashMap<>();
+//        final Map<Sha256Hash, byte[]> programs = new HashMap<>();
 
         Arrays.stream(users).forEach(user -> user.asf = asf);
 
@@ -400,15 +400,14 @@ public class AppTest2 extends LTBCMainTestCase {
             FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
 
             List<FoundingMember> fml = List.of(afm, bfm, cfm, dfm);
-            byte[][] userKeys = fml.stream().map(FoundingMember::key).toArray(byte[][]::new);
             Coin value = fml.stream().map(FoundingMember::value).reduce(Coin.ZERO, Coin::add);
 
             // Create a VTXO based on userKeys
-            byte[] rs1 = asf.createVTXONodeScript(userKeys).program();
+            byte[] rs1 = asf.createVTXONodeScript(fml.stream().map(FoundingMember::key).toArray(byte[][]::new)).program();
 
             // Here we should fund the ARK from the user
             // Create the output and send in the hash of the script into that output.
-            TransactionOutput fo = rootTx.addOutput(value, ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
+            TransactionOutput rootTo = rootTx.addOutput(value, ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
 
             TransactionInput rootTi = rootTx.addInput(arkFundingOutput);
             arkFundingOutput.markAsSpent(rootTi);
@@ -424,18 +423,18 @@ public class AppTest2 extends LTBCMainTestCase {
 
             // Now we make the next node.
             {
-                Sha256Hash hs = arf.createArkTreeNode(tree, fml, fo);
+                Sha256Hash hs = arf.createArkTreeNode(tree, fml, rootTo);
 
                 // On the ArkService side
                 Transaction vtx1 = tree.nodes.get(hs);
 
                 // Now we create the outputs
                 // A + B + S | S + T=100
-                byte[] rs1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
+//                byte[] rs1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
 
                 // Create the output and send in the hash of the script into that output.
                 // C + D + S | S + T=100
-                byte[] rs1_2 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(carol, david).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
+//                byte[] rs1_2 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(carol, david).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
 
                 TransactionInput ti1 = vtx1.getInput(0);
                 Transaction vtx1_1 = vtx1.getOutput(0).getSpentBy().getParentTransaction();
@@ -446,15 +445,15 @@ public class AppTest2 extends LTBCMainTestCase {
                 byte[] rs1_1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(alice.getActivePublicKey()).program()));
 
                 // remember it
-                programs.put(Sha256Hash.of(rs1_1_1), rs1_1_1);
+//                programs.put(Sha256Hash.of(rs1_1_1), rs1_1_1);
 
                 // B + S | B + dT=10
-                byte[] rs1_1_2 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(bob.getActivePublicKey()).program()));
+//                byte[] rs1_1_2 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(bob.getActivePublicKey()).program()));
 
                 // Create the output and send in the hash of the script into that output.
 
                 // remember it
-                programs.put(Sha256Hash.of(rs1_1_2), rs1_1_2);
+//                programs.put(Sha256Hash.of(rs1_1_2), rs1_1_2);
 
                 // Connect the input
                 // TODO: This is a hack!
@@ -469,15 +468,18 @@ public class AppTest2 extends LTBCMainTestCase {
                 byte[] rs1_2_1 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(carol.getActivePublicKey()).program()));
 
                 // remember it
-                programs.put(Sha256Hash.of(rs1_2_1), rs1_2_1);
+//                programs.put(Sha256Hash.of(rs1_2_1), rs1_2_1);
 
                 // D + S | D + dT=10
                 byte[] rs1_2_2 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(david.getActivePublicKey()).program()));
                 // remember it
-                programs.put(Sha256Hash.of(rs1_2_2), rs1_2_2);
+//                programs.put(Sha256Hash.of(rs1_2_2), rs1_2_2);
 
                 // Connect the input
                 TransactionInput ti_1_2 = vtx1_2.getInput(0);
+
+                byte[] rs1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
+
 
                 // Alice and Bobs branch
                 ArkVirtualTransactionStack vtxs_1_1 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
@@ -492,6 +494,8 @@ public class AppTest2 extends LTBCMainTestCase {
                 Map<Sha256Hash, byte[]> bobSignatures = bob.signStack(vtxs_1_1);
 
                 // Carols and Davids branch
+                byte[] rs1_2 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(carol, david).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
+
                 ArkVirtualTransactionStack vtxs_1_2 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
                         new ArkVirtualTransactionNode(vtx1.serialize(), rs1),
                         new ArkVirtualTransactionNode(vtx1_2.serialize(), rs1_2)
