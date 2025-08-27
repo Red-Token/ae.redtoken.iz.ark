@@ -56,10 +56,10 @@ public class Actor {
     byte[] signInput(NetworkParameters parameters, byte[] transaction, byte[] program) {
 //        Transaction tx = new Transaction(parameters, transaction);
         Transaction tx = Transaction.read(ByteBuffer.wrap(transaction));
-        return signStack(tx.hashForSignature(0, program, Transaction.SigHash.ALL, true).getBytes());
+        return signHash(tx.hashForSignature(0, program, Transaction.SigHash.ALL, true).getBytes());
     }
 
-    byte[] signStack(byte[] hash) {
+    byte[] signHash(byte[] hash) {
         return new TransactionSignature(activeKey.sign(Sha256Hash.wrap(hash)), Transaction.SigHash.ALL, true).encodeToBitcoin();
     }
 
@@ -105,10 +105,10 @@ public class Actor {
                 true
         );
 
-        return signStack(sigHash.getBytes());
+        return signHash(sigHash.getBytes());
     }
 
-    public Map<Sha256Hash, byte[]> signStack(NetworkParameters params, AppTest2.ArkVirtualTransactionStack vtxs) {
+    public Map<Sha256Hash, byte[]> signStack(AppTest2.ArkVirtualTransactionStack vtxs) {
 
         Map<Sha256Hash, Transaction> treeMap = new HashMap<>();
 //        Transaction root = new Transaction(params, vtxs.root);

@@ -1,6 +1,7 @@
 package ae.redtoken.iz.ark.nostrtest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.SneakyThrows;
 import nostr.event.Kind;
 import nostr.event.impl.Filters;
 import nostr.event.impl.GenericEvent;
@@ -9,6 +10,7 @@ import org.bitcoinj.base.Coin;
 import org.bitcoinj.base.Sha256Hash;
 import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.ECKey;
+import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.params.RegTestParams;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
@@ -304,32 +306,8 @@ public class AppTest2 extends LTBCMainTestCase {
             Assertions.assertEquals(Coin.valueOf((int) coinsToSendToUsers, 0), user.kit.wallet().getBalance());
         }
 
-        // Create funding outputs
-        Transaction ftx = new Transaction();
-//        Transaction ftx = new Transaction(params);
-        ftx.setVersion(2);
-
-        // Create funding transactions, this is nibbles that we use to pay the miner
-        for (int i = 0; i < 10; i++)
-            ftx.addOutput(Coin.valueOf(0, 1), arkService.kit.wallet().freshReceiveAddress());
-
-        {
-            SendRequest sr = SendRequest.forTx(ftx);
-            sr.feePerKb = Coin.valueOf(1000);
-            arkService.kit.wallet().completeTx(sr);
-
-            // Send it out
-            arkService.kit.peerGroup().broadcastTransaction(sr.tx);
-
-//                arkService.kit.wallet().addWatchedScripts(List.of(p2shScript89));
-//                alice.kit.wallet().addWatchedScripts(List.of(p2shScript89));
-
-            // Mine
-            Thread.sleep(5000);
-            ltbc.mine(16);
-            Thread.sleep(5000);
-        }
-
+        arkService.createFundingShards(10);
+        mineAndWait();
 
         // Create the root node
 
@@ -392,9 +370,8 @@ public class AppTest2 extends LTBCMainTestCase {
             // This is the output that is used to FUND the rootNode (the fundingInput in the rootNode takes its capital from here
             TransactionOutput arkFundingOutput;
 
-//            Script arkFundingRs = ScriptBuilder.createP2WPKHOutputScript(arkService.activeKey);
-            Script arkFundingRs = ScriptBuilder.createP2PKHOutputScript(arkService.activeKey);
-
+            Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(arkService.activeKey);
+//            Script arkFundingRs = ScriptBuilder.createP2PKHOutputScript(arkService.activeKey);
 
             // Let's fund the founding output
             {
@@ -402,7 +379,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 arkFundingTx.setVersion(2);
 
 //                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkService.kit.wallet().freshReceiveAddress());
-                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkFundingRs);
+                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkFundingLockScript);
 
                 SendRequest sr = SendRequest.forTx(arkFundingTx);
                 sr.feePerKb = Coin.valueOf(1000);
@@ -412,9 +389,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 arkService.kit.peerGroup().broadcastTransaction(sr.tx);
 
                 // Mine
-                Thread.sleep(5000);
-                ltbc.mine(16);
-                Thread.sleep(5000);
+                mineAndWait();
             }
 
             // Now we have money in our fundingOutput
@@ -440,29 +415,36 @@ public class AppTest2 extends LTBCMainTestCase {
             // TODO: Workaround, since we dont use Witness transactions we need to fund before we create the subnodes, change this!
             // Sign the Input, ie Yes lets go
 //            rootTx.replaceInput(rootTi.getIndex(), arkService.signSpendingInput(rootTi));
+
+            byte[] witnessBytes;
+            TransactionInput rootTi;
             {
 //                TransactionInput rootTi = rootTx.addInput(arkFundingOutput);
-                TransactionInput rootTi = rootTx.addInput(arkFundingOutput);
+                rootTi = rootTx.addInput(arkFundingOutput);
                 arkFundingOutput.markAsSpent(rootTi);
 
-                rootTx.replaceInput(rootTi.getIndex(), arkService.signSpendingInput(rootTi));
 
-//                TransactionSignature ts = rootTx.calculateWitnessSignature(
-//                        rootTi.getIndex(),
-//                        arkService.activeKey,
-//                        arkFundingOutput.getScriptPubKey(),
-//                        arkFundingOutput.getValue(),
-//                        Transaction.SigHash.ALL,
-//                        true
-//                );
-//
-//                TransactionWitness witness = TransactionWitness.redeemP2WPKH(ts, arkService.activeKey);
-//                setWitness(rootTi, witness);
+//                rootTx.replaceInput(rootTi.getIndex(), arkService.signSpendingInput(rootTi));
+
+                byte[] binSin = arkService.signInputWitness(
+                        rootTx.serialize(),
+                        ScriptBuilder.createP2PKHOutputScript(arkService.activeKey).program(),
+                        rootTi.getIndex(),
+                        arkFundingOutput.getValue()
+                );
+
+                TransactionSignature ts2 = TransactionSignature.decodeFromBitcoin(binSin, false, false);
+                TransactionWitness witness = TransactionWitness.redeemP2WPKH(ts2, arkService.activeKey);
+                witnessBytes = witness.serialize();
+
+//                setWitness(rootTi, TransactionWitness.read(ByteBuffer.wrap(witnessBytes)));
             }
 //            rootTx.replaceInput(rootTi.getIndex(), rootTi.withWitness(witness));
 
             // Add a feeInput to transaction.
             fund(rootTx, arkService);
+
+            setWitness(rootTi, TransactionWitness.read(ByteBuffer.wrap(witnessBytes)));
 
             // Now we make the next node.
             {
@@ -592,16 +574,16 @@ public class AppTest2 extends LTBCMainTestCase {
                         new ArkVirtualTransactionNode(vtx1_1.serialize(), rs1_1)
                 ));
 
-                Map<Sha256Hash, byte[]> aliceSignatures = alice.signStack(params, vtxs_1_1);
-                Map<Sha256Hash, byte[]> bobSignatures = bob.signStack(params, vtxs_1_1);
+                Map<Sha256Hash, byte[]> aliceSignatures = alice.signStack(vtxs_1_1);
+                Map<Sha256Hash, byte[]> bobSignatures = bob.signStack(vtxs_1_1);
 
                 ArkVirtualTransactionStack vtxs_1_2 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
                         new ArkVirtualTransactionNode(vtx1.serialize(), rs1),
                         new ArkVirtualTransactionNode(vtx1_2.serialize(), rs1_2)
                 ));
 
-                Map<Sha256Hash, byte[]> carolSignatures = carol.signStack(params, vtxs_1_2);
-                Map<Sha256Hash, byte[]> davidSignatures = david.signStack(params, vtxs_1_2);
+                Map<Sha256Hash, byte[]> carolSignatures = carol.signStack(vtxs_1_2);
+                Map<Sha256Hash, byte[]> davidSignatures = david.signStack(vtxs_1_2);
 
                 //Lets do this for S too
                 ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
@@ -610,7 +592,7 @@ public class AppTest2 extends LTBCMainTestCase {
                         new ArkVirtualTransactionNode(vtx1_2.serialize(), rs1_2)
                 ));
 
-                Map<Sha256Hash, byte[]> arkServiceSignatures = arkService.signStack(params, vtxs_full);
+                Map<Sha256Hash, byte[]> arkServiceSignatures = arkService.signStack(vtxs_full);
 
                 // Sign it
                 {
@@ -974,6 +956,12 @@ public class AppTest2 extends LTBCMainTestCase {
          */
 
 
+    }
+
+    @SneakyThrows
+    private void mineAndWait() {
+        ltbc.mine(1);
+        Thread.sleep(1000);
     }
 
     public static void setWitness(TransactionInput ti, TransactionWitness witness) {

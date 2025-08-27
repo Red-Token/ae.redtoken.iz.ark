@@ -2,7 +2,11 @@ package ae.redtoken.iz.ark.nostrtest;
 
 //import ae.redtoken.iz.ark.nostrtest.Actor;
 
+import lombok.SneakyThrows;
+import org.bitcoinj.base.Coin;
 import org.bitcoinj.core.NetworkParameters;
+import org.bitcoinj.core.Transaction;
+import org.bitcoinj.wallet.SendRequest;
 
 public class ArkService extends Actor {
 
@@ -12,6 +16,25 @@ public class ArkService extends Actor {
         kit.wallet().addCoinsReceivedEventListener((wallet, transaction, coin, coin1) -> {
             System.out.println("Received coin " + coin + " to " + wallet);
         });
+    }
 
+    final static Coin FUNDING_SHARD_VALUE = Coin.valueOf(0, 1);
+
+    @SneakyThrows
+    public void createFundingShards(int num) {
+
+        // Create funding outputs
+        Transaction ftx = new Transaction();
+        ftx.setVersion(2);
+
+        for (int i = 0; i < num; i++)
+            ftx.addOutput(FUNDING_SHARD_VALUE, kit.wallet().freshReceiveAddress());
+
+        SendRequest sr = SendRequest.forTx(ftx);
+        sr.feePerKb = Coin.valueOf(1000);
+        kit.wallet().completeTx(sr);
+
+        // Send it out
+        kit.peerGroup().broadcastTransaction(sr.tx);
     }
 }
