@@ -444,7 +444,6 @@ public class AppTest2 extends LTBCMainTestCase {
             // Add a feeInput to transaction.
             fund(rootTx, arkService);
 
-            setWitness(rootTi, TransactionWitness.read(ByteBuffer.wrap(witnessBytes)));
 
             // Now we make the next node.
             {
@@ -657,13 +656,14 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Now let's complete and fund this transaction
                 // Todo: this part here needs to be rewritten to work with the signing strategy
                 {
-//                 Send it out
+                    // Sign the root transaction
+                    setWitness(rootTi, TransactionWitness.read(ByteBuffer.wrap(witnessBytes)));
+
+                    // Send it out
                     arkService.kit.peerGroup().broadcastTransaction(rootTx);
 
                     // Mine
-                    Thread.sleep(5000);
-                    ltbc.mine(16);
-                    Thread.sleep(5000);
+                    mineAndWait();
                 }
 
                 ///  The ARK Round is deposit
