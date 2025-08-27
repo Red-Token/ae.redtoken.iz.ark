@@ -174,12 +174,6 @@ public class ArkScriptFactory {
     }
 
     public TransactionWitness createVTXOLeafColaborativeUnlockWitness(byte[] userSignature, byte[] serviceSignature, byte[] program) {
-//        TransactionWitness witness = new TransactionWitness(4);
-//        witness.setPush(0, serviceSignature);
-//        witness.setPush(1, userSignature);
-//        witness.setPush(2, new byte[]{0x01});
-//        witness.setPush(3, program);
-
         List<byte[]> pushes = new ArrayList<>();
 
         pushes.add(serviceSignature);
@@ -188,8 +182,6 @@ public class ArkScriptFactory {
         pushes.add(program);
 
         TransactionWitness witness = TransactionWitness.of(pushes);
-
-
         return witness;
     }
 }

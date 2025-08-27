@@ -416,157 +416,77 @@ public class AppTest2 extends LTBCMainTestCase {
             // Sign the Input, ie Yes lets go
 //            rootTx.replaceInput(rootTi.getIndex(), arkService.signSpendingInput(rootTi));
 
-            byte[] witnessBytes;
-            TransactionInput rootTi;
-            {
-//                TransactionInput rootTi = rootTx.addInput(arkFundingOutput);
-                rootTi = rootTx.addInput(arkFundingOutput);
-                arkFundingOutput.markAsSpent(rootTi);
-
-
-//                rootTx.replaceInput(rootTi.getIndex(), arkService.signSpendingInput(rootTi));
-
-                byte[] binSin = arkService.signInputWitness(
-                        rootTx.serialize(),
-                        ScriptBuilder.createP2PKHOutputScript(arkService.activeKey).program(),
-                        rootTi.getIndex(),
-                        arkFundingOutput.getValue()
-                );
-
-                TransactionSignature ts2 = TransactionSignature.decodeFromBitcoin(binSin, false, false);
-                TransactionWitness witness = TransactionWitness.redeemP2WPKH(ts2, arkService.activeKey);
-                witnessBytes = witness.serialize();
-
-//                setWitness(rootTi, TransactionWitness.read(ByteBuffer.wrap(witnessBytes)));
-            }
-//            rootTx.replaceInput(rootTi.getIndex(), rootTi.withWitness(witness));
+//            byte[] witnessBytes;
+            TransactionInput rootTi = rootTx.addInput(arkFundingOutput);
+            arkFundingOutput.markAsSpent(rootTi);
 
             // Add a feeInput to transaction.
             fund(rootTx, arkService);
 
+            ArkTree tree = new ArkTree();
+
+            tree.arkService = arkService;
+            tree.roots = Collections.singletonList(rootTx.getTxId());
+            tree.nodes.put(rootTx.getTxId(), rootTx);
 
             // Now we make the next node.
             {
-                //
-                ArkTree ztree = new ArkTree();
-                Sha256Hash hs = arf.createArkTreeNode(ztree, fml, fo);
+                Sha256Hash hs = arf.createArkTreeNode(tree, fml, fo);
 
                 // On the ArkService side
-                Transaction vtx1 = ztree.nodes.get(hs);
+                Transaction vtx1 = tree.nodes.get(hs);
 
                 // Now we create the outputs
                 // A + B + S | S + T=100
-//                byte[] rs1_1 = asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program();
-                byte[] rs1_1 = ztree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
+                byte[] rs1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
 
                 // Create the output and send in the hash of the script into that output.
-//                vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1)));
-
                 // C + D + S | S + T=100
-//                byte[] rs1_2 = asf.createVTXONodeScript(Stream.of(carol, david).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program();
-                byte[] rs1_2 = ztree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(carol, david).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
+                byte[] rs1_2 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(carol, david).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
 
-                // Create the output and send in the hash of the script into that output.
-//                vtx1.addOutput(Coin.valueOf(2, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2)));
-
-//                TransactionInput ti1 = vtx1.addInput(findOutputWitness(ctx, rs1));
                 TransactionInput ti1 = vtx1.getInput(0);
-
-                // Fund it
-//                fund(vtx1, arkService);
-
-                // Create the next step
-
-//                TransactionOutput fundingOutput = findOutputWitness(vtx1, rs1_1);
-//                Sha256Hash hs1 = arf.createArkTreeNode(ztree, List.of(afm, bfm), fundingOutput);
-
-//                vtx1.getOutput(0).getSpentBy().getParentTransaction();
-//
-//                Transaction tz = ztree.nodes.get(hs1);
-
                 Transaction vtx1_1 = vtx1.getOutput(0).getSpentBy().getParentTransaction();
-//                Transaction vtx1_1 = new Transaction(params);
-//                vtx1_1.setVersion(2);
 
                 // Create the leafs
                 // Now we create the outputs
                 // A + S | A + dT=10
-//                byte[] rs1_1_1 = asf.createVTXOLeafScript(alice.getActivePublicKey()).program();
-                byte[] rs1_1_1 = ztree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(alice.getActivePublicKey()).program()));
-
-                // Create the output and send in the hash of the script into that output.
-//                vtx1_1.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1_1)));
+                byte[] rs1_1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(alice.getActivePublicKey()).program()));
 
                 // remember it
                 programs.put(Sha256Hash.of(rs1_1_1), rs1_1_1);
 
                 // B + S | B + dT=10
-//                byte[] rs1_1_2 = asf.createVTXOLeafScript(bob.getActivePublicKey()).program();
-                byte[] rs1_1_2 = ztree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(bob.getActivePublicKey()).program()));
+                byte[] rs1_1_2 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(bob.getActivePublicKey()).program()));
 
                 // Create the output and send in the hash of the script into that output.
-//                vtx1_1.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_1_2)));
 
                 // remember it
                 programs.put(Sha256Hash.of(rs1_1_2), rs1_1_2);
 
                 // Connect the input
-//                TransactionInput ti_1_1 = vtx1_1.addInput(findOutputWitness(vtx1, rs1_1));
                 // TODO: This is a hack!
                 TransactionInput ti_1_1 = vtx1_1.getInput(0);
 
                 // Fund the transaction
-//                fund(vtx1_1, arkService);
-
-//                // Sign the input by everybody
-//                {
-//                    byte[] tx = vtx1_1.serialize();
-//                    byte[] program = rs1_1.program();
-//
-//                    byte[] sigABin = alice.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
-//                    byte[] sigBBin = bob.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
-//                    byte[] sigSBin = arkService.signInputWitness(params, tx, program, ti_1_1.getIndex(), Objects.requireNonNull(ti_1_1.getConnectedOutput()).getValue());
-//
-//                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigBBin, sigABin}, sigSBin, rs1_1.program());
-//                    ti_1_1.setWitness(witness);
-//                }
-
-                // Create the next step
-//                TransactionOutput fundingOutput2 = findOutputWitness(vtx1, rs1_2);
-//                Sha256Hash hs2 = arf.createArkTreeNode(ztree, List.of(cfm, dfm), fundingOutput2);
                 Transaction vtx1_2 = vtx1.getOutput(1).getSpentBy().getParentTransaction();
-//                Transaction vtx1_2 = ztree.nodes.get(hs2);
-//                Transaction vtx1_2 = new Transaction(params);
-//                vtx1_2.setVersion(2);
 
                 // Create the leafs
                 // Now we create the outputs
                 // C + S | C + dT=10
-                byte[] rs1_2_1 = ztree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(carol.getActivePublicKey()).program()));
-
-                // Create the output and send in the hash of the script into that output.
-//                vtx1_2.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2_1)));
+                byte[] rs1_2_1 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(carol.getActivePublicKey()).program()));
 
                 // remember it
                 programs.put(Sha256Hash.of(rs1_2_1), rs1_2_1);
 
                 // D + S | D + dT=10
-                byte[] rs1_2_2 = ztree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(david.getActivePublicKey()).program()));
-//                byte[] rs1_2_2 = asf.createVTXOLeafScript(david.getActivePublicKey()).program();
-
-                // Create the output and send in the hash of the script into that output.
-//                vtx1_2.addOutput(Coin.valueOf(1, 0), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1_2_2)));
-
+                byte[] rs1_2_2 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(david.getActivePublicKey()).program()));
                 // remember it
                 programs.put(Sha256Hash.of(rs1_2_2), rs1_2_2);
 
                 // Connect the input
-
-//                TransactionInput ti_1_2 = vtx1_2.addInput(findOutputWitness(vtx1, rs1_2));
                 TransactionInput ti_1_2 = vtx1_2.getInput(0);
 
                 // Fund the transaction
-//                fund(vtx1_2, arkService);
 
                 ArkVirtualTransactionStack vtxs_1_1 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
                         new ArkVirtualTransactionNode(vtx1.serialize(), rs1),
@@ -608,7 +528,6 @@ public class AppTest2 extends LTBCMainTestCase {
                             arkServiceSignatures.get(programHash),
                             program);
 
-                    // TODO Ugly Betty
                     setWitness(ti1, witness);
                 }
 
@@ -638,24 +557,16 @@ public class AppTest2 extends LTBCMainTestCase {
                             },
                             arkServiceSignatures.get(programHash),
                             program);
-//                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(new byte[][]{sigDBin, sigCBin}, sigSBin, program);
                     setWitness(ti_1_2, witness);
                 }
-
-                // Populate the tree with signatures
-
-                ArkTree tree = new ArkTree();
-
-                tree.arkService = arkService;
-                tree.roots = Collections.singletonList(rootTx.getTxId());
-                tree.nodes.put(rootTx.getTxId(), rootTx);
-                tree.nodes.put(vtx1.getTxId(), vtx1);
-                tree.nodes.put(vtx1_1.getTxId(), vtx1_1);
-                tree.nodes.put(vtx1_2.getTxId(), vtx1_2);
 
                 // Now let's complete and fund this transaction
                 // Todo: this part here needs to be rewritten to work with the signing strategy
                 {
+                    // Create the witness
+                    // TODO move this to the scriptfactory
+                    byte[] witnessBytes = arkService.createP2WPKHWitness(rootTx.serialize(), rootTi.getIndex(), arkFundingOutput.getValue());
+
                     // Sign the root transaction
                     setWitness(rootTi, TransactionWitness.read(ByteBuffer.wrap(witnessBytes)));
 

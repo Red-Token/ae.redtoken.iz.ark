@@ -1,13 +1,11 @@
 package ae.redtoken.iz.ark.nostrtest;
 
+import lombok.SneakyThrows;
 import nostr.id.Identity;
 import org.bitcoinj.base.Coin;
 import org.bitcoinj.base.ScriptType;
 import org.bitcoinj.base.Sha256Hash;
-import org.bitcoinj.core.NetworkParameters;
-import org.bitcoinj.core.Transaction;
-import org.bitcoinj.core.TransactionInput;
-import org.bitcoinj.core.TransactionOutput;
+import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.ECKey;
 import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.kits.WalletAppKit;
@@ -146,5 +144,20 @@ public class Actor {
         });
 
         return sigMap;
+    }
+
+    @SneakyThrows
+    public byte[] createP2WPKHWitness(byte[] transactionBytes, int index, Coin value) {
+
+        byte[] witnessSignatureBytes = signInputWitness(
+                transactionBytes,
+                ScriptBuilder.createP2PKHOutputScript(activeKey).program(),
+                index,
+                value
+        );
+
+        TransactionSignature ts = TransactionSignature.decodeFromBitcoin(witnessSignatureBytes, false, false);
+        TransactionWitness witness = TransactionWitness.redeemP2WPKH(ts, activeKey);
+        return witness.serialize();
     }
 }
