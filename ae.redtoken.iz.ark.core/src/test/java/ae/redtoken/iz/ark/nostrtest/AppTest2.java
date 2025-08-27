@@ -10,7 +10,6 @@ import org.bitcoinj.base.Coin;
 import org.bitcoinj.base.Sha256Hash;
 import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.ECKey;
-import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.params.RegTestParams;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
@@ -78,15 +77,47 @@ public class AppTest2 extends LTBCMainTestCase {
             return new Zel(tree, nodeOutput, rs);
         }
 
-        Sha256Hash createArkTreeNode(ArkTree tree, List<FoundingMember> members, TransactionOutput output) {
-            record SubNode(List<FoundingMember> list, TransactionOutput output) {
+        record SubNode(List<FoundingMember> list, TransactionOutput output) {
+        }
+
+        Sha256Hash createArkTreeNode(ArkTree tree, List<FoundingMember> members, List<TransactionOutput> outputs) {
+
+            Transaction rootTx = new Transaction();
+            rootTx.setVersion(2);
+
+            Coin value = members.stream().map(FoundingMember::value).reduce(Coin.ZERO, Coin::add);
+
+            // Create a VTXO based on userKeys
+            Script rs = asf.createVTXONodeScript(members.stream().map(m -> m.key).toArray(byte[][]::new));
+//            byte[] rs1 = asf.createVTXONodeScript(members.stream().map(FoundingMember::key).toArray(byte[][]::new)).program();
+//            tree.locks.put(Sha256Hash.of(rs1.getProgram()), rs.getProgram());
+            tree.locks.put(Sha256Hash.of(rs.program()), rs.program());
+
+            // Here we should fund the ARK from the user
+            // Create the output and send in the hash of the script into that output.
+            TransactionOutput rootTo = rootTx.addOutput(value, ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs.program())));
+
+            for(TransactionOutput output: outputs) {
+                TransactionInput rootTi = rootTx.addInput(output);
+                output.markAsSpent(rootTi);
             }
 
+            // Add a feeInput to transaction.
+            fund(rootTx, arkService);
+
+            tree.roots = Collections.singletonList(rootTx.getTxId());
+            tree.nodes.put(rootTx.getTxId(), rootTx);
+
+            return createArkTreeNode(tree, members, rootTo);
+        }
+
+        Sha256Hash createArkTreeNode(ArkTree tree, List<FoundingMember> members, TransactionOutput output) {
+
             // rec create the tree
-            Transaction tx = new Transaction();
-            tx.setVersion(2);
-            TransactionInput ti = tx.addInput(output);
-            output.markAsSpent(ti);
+            Transaction trunkTx = new Transaction();
+            trunkTx.setVersion(2);
+            TransactionInput trunkTi = trunkTx.addInput(output);
+            output.markAsSpent(trunkTi);
 
             Collection<SubNode> subNodes = new ArrayList<>();
 
@@ -100,7 +131,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
                     Script rs = asf.createVTXOLeafScript(member.key);
                     tree.locks.put(Sha256Hash.of(rs.getProgram()), rs.getProgram());
-                    TransactionOutput leafOutput = tx.addOutput(
+                    TransactionOutput leafOutput = trunkTx.addOutput(
                             member.value,
                             ScriptBuilder.createP2WSHOutputScript(rs));
 
@@ -110,7 +141,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
                     Script rs = asf.createVTXONodeScript(list.stream().map(m -> m.key).toArray(byte[][]::new));
                     tree.locks.put(Sha256Hash.of(rs.getProgram()), rs.getProgram());
-                    TransactionOutput nodeOutput = tx.addOutput(
+                    TransactionOutput nodeOutput = trunkTx.addOutput(
                             Coin.valueOf(list.stream().mapToLong(m -> m.value.value).sum()),
                             ScriptBuilder.createP2WSHOutputScript(rs));
 
@@ -118,15 +149,15 @@ public class AppTest2 extends LTBCMainTestCase {
                 }
             }
 
-            fund(tx, arkService);
+            fund(trunkTx, arkService);
 
-            tree.nodes.put(tx);
+            tree.nodes.put(trunkTx);
 
             subNodes.forEach(subNode -> {
                 createArkTreeNode(tree, subNode.list, subNode.output);
             });
 
-            return tx.getTxId();
+            return trunkTx.getTxId();
         }
 
         private void fund(Transaction tx, Actor arkService) {
@@ -361,8 +392,8 @@ public class AppTest2 extends LTBCMainTestCase {
 
             // Users ask to join
 
-            Transaction rootTx = new Transaction();
-            rootTx.setVersion(2);
+//            Transaction rootTx = new Transaction();
+//            rootTx.setVersion(2);
 
             ArkRoundFactory arf = new ArkRoundFactory(params, asf, arkService);
 
@@ -400,30 +431,34 @@ public class AppTest2 extends LTBCMainTestCase {
             FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
 
             List<FoundingMember> fml = List.of(afm, bfm, cfm, dfm);
-            Coin value = fml.stream().map(FoundingMember::value).reduce(Coin.ZERO, Coin::add);
+            List<TransactionOutput> fol = List.of(arkFundingOutput);
 
-            // Create a VTXO based on userKeys
-            byte[] rs1 = asf.createVTXONodeScript(fml.stream().map(FoundingMember::key).toArray(byte[][]::new)).program();
-
-            // Here we should fund the ARK from the user
-            // Create the output and send in the hash of the script into that output.
-            TransactionOutput rootTo = rootTx.addOutput(value, ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
-
-            TransactionInput rootTi = rootTx.addInput(arkFundingOutput);
-            arkFundingOutput.markAsSpent(rootTi);
-
-            // Add a feeInput to transaction.
-            fund(rootTx, arkService);
+//            Coin value = fml.stream().map(FoundingMember::value).reduce(Coin.ZERO, Coin::add);
+//
+//            // Create a VTXO based on userKeys
+//            byte[] rs1 = asf.createVTXONodeScript(fml.stream().map(FoundingMember::key).toArray(byte[][]::new)).program();
+//
+//            // Here we should fund the ARK from the user
+//            // Create the output and send in the hash of the script into that output.
+//            TransactionOutput rootTo = rootTx.addOutput(value, ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs1)));
+//
+//            TransactionInput rootTi = rootTx.addInput(arkFundingOutput);
+//            arkFundingOutput.markAsSpent(rootTi);
+//
+//            // Add a feeInput to transaction.
+//            fund(rootTx, arkService);
 
             ArkTree tree = new ArkTree();
-
             tree.arkService = arkService;
-            tree.roots = Collections.singletonList(rootTx.getTxId());
-            tree.nodes.put(rootTx.getTxId(), rootTx);
 
             // Now we make the next node.
             {
-                Sha256Hash hs = arf.createArkTreeNode(tree, fml, rootTo);
+                Sha256Hash hs = arf.createArkTreeNode(tree, fml, fol);
+
+                Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
+                TransactionInput rootTi = rootTx.getInput(0);
+                byte[] rs1 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(fml.stream().map(m -> m.key).toArray(byte[][]::new)).program()));
+
 
                 // On the ArkService side
                 Transaction vtx1 = tree.nodes.get(hs);
