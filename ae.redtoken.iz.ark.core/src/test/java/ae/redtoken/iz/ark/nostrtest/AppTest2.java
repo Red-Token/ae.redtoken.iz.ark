@@ -520,7 +520,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
                 byte[] rs1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
 
-                Map<byte[], Map<Sha256Hash, byte[]>> signedStackMap = Maps.newHashMap();
+                Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap = Maps.newHashMap();
 
                 for (ArkTree.ArkLeaf leaf : tree.leafs) {
                     byte[] pubKey = Script.parse(leaf.program).chunks().get(1).data;
@@ -553,58 +553,56 @@ public class AppTest2 extends LTBCMainTestCase {
 //                        Transaction t2 = tree.nodes.get(newHash);
 
 
-                        System.out.println("sdfsdfsd");
+//                        System.out.println("sdfsdfsd");
 
                     }
 
-                    System.out.println(Base64.getEncoder().encodeToString(rs1));
-                    System.out.println(Base64.getEncoder().encodeToString(rs1_1));
-                    System.out.println(Base64.getEncoder().encodeToString(rs1_1_1));
-
-                    for (ArkVirtualTransactionNode node : list) {
-                        System.out.println(Base64.getEncoder().encodeToString(node.program));
-                    }
+//                    System.out.println(Base64.getEncoder().encodeToString(rs1));
+//                    System.out.println(Base64.getEncoder().encodeToString(rs1_1));
+//                    System.out.println(Base64.getEncoder().encodeToString(rs1_1_1));
+//
+//                    for (ArkVirtualTransactionNode node : list) {
+//                        System.out.println(Base64.getEncoder().encodeToString(node.program));
+//                    }
 
                     byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
-
-                    System.out.println(Base64.getEncoder().encodeToString(rootBytes));
-                    System.out.println(Base64.getEncoder().encodeToString(rootTx.serialize()));
-
                     ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, list);
 
-                    ArkUser user = Arrays.stream(users).filter(arkUser -> Arrays.equals(arkUser.activeKey.getPubKey(), pubKey)).findFirst().orElseThrow();
-
+                    ArkUser user = Arrays.stream(users).filter(arkUser -> Arrays.equals(arkUser.getActivePublicKey(), pubKey)).findFirst().orElseThrow();
                     Map<Sha256Hash, byte[]> signedStack = user.signStack(avts);
-
-                    signedStackMap.put(pubKey, signedStack);
-                    System.out.println("sdfsdfsd");
+                    signedStackMap.put(ByteBuffer.wrap(user.getActivePublicKey()), signedStack);
                 }
 
                 // Alice and Bobs branch
-                ArkVirtualTransactionStack vtxs_1_1 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
-                        new ArkVirtualTransactionNode(vtx1.serialize(), rs1),
-                        new ArkVirtualTransactionNode(vtx1_1.serialize(), rs1_1)
-                ));
+//                ArkVirtualTransactionStack vtxs_1_1 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
+//                        new ArkVirtualTransactionNode(vtx1.serialize(), rs1),
+//                        new ArkVirtualTransactionNode(vtx1_1.serialize(), rs1_1)
+//                ));
 
                 // Alice signs the tree
-                Map<Sha256Hash, byte[]> aliceSignatures = alice.signStack(vtxs_1_1);
+//                Map<Sha256Hash, byte[]> aliceSignatures = alice.signStack(vtxs_1_1);
+                byte[] activePublicKey = alice.getActivePublicKey();
+                Map<Sha256Hash, byte[]> aliceSignatures = signedStackMap.get(ByteBuffer.wrap(alice.getActivePublicKey()));
 
                 // Bob signs the tree
-                Map<Sha256Hash, byte[]> bobSignatures = bob.signStack(vtxs_1_1);
+//                Map<Sha256Hash, byte[]> bobSignatures = bob.signStack(vtxs_1_1);
+                Map<Sha256Hash, byte[]> bobSignatures = signedStackMap.get(ByteBuffer.wrap(bob.getActivePublicKey()));
 
                 // Carols and Davids branch
                 byte[] rs1_2 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(carol, david).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
 
-                ArkVirtualTransactionStack vtxs_1_2 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
-                        new ArkVirtualTransactionNode(vtx1.serialize(), rs1),
-                        new ArkVirtualTransactionNode(vtx1_2.serialize(), rs1_2)
-                ));
+//                ArkVirtualTransactionStack vtxs_1_2 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
+//                        new ArkVirtualTransactionNode(vtx1.serialize(), rs1),
+//                        new ArkVirtualTransactionNode(vtx1_2.serialize(), rs1_2)
+//                ));
 
                 // Carol signs the tree
-                Map<Sha256Hash, byte[]> carolSignatures = carol.signStack(vtxs_1_2);
+//                Map<Sha256Hash, byte[]> carolSignatures = carol.signStack(vtxs_1_2);
+                Map<Sha256Hash, byte[]> carolSignatures = signedStackMap.get(ByteBuffer.wrap(carol.getActivePublicKey()));
 
                 // David signs the tree
-                Map<Sha256Hash, byte[]> davidSignatures = david.signStack(vtxs_1_2);
+//                Map<Sha256Hash, byte[]> davidSignatures = david.signStack(vtxs_1_2);
+                Map<Sha256Hash, byte[]> davidSignatures = signedStackMap.get(ByteBuffer.wrap(david.getActivePublicKey()));
 
                 // Service provides branch
                 ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
