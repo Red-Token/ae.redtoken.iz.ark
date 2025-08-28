@@ -1,6 +1,7 @@
 package ae.redtoken.iz.ark.nostrtest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Maps;
 import lombok.SneakyThrows;
 import nostr.event.Kind;
 import nostr.event.impl.Filters;
@@ -13,6 +14,7 @@ import org.bitcoinj.crypto.ECKey;
 import org.bitcoinj.params.RegTestParams;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
+import org.bitcoinj.script.ScriptChunk;
 import org.bitcoinj.wallet.SendRequest;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -97,7 +99,7 @@ public class AppTest2 extends LTBCMainTestCase {
             // Create the output and send in the hash of the script into that output.
             TransactionOutput rootTo = rootTx.addOutput(value, ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs.program())));
 
-            for(TransactionOutput output: outputs) {
+            for (TransactionOutput output : outputs) {
                 TransactionInput rootTi = rootTx.addInput(output);
                 output.markAsSpent(rootTi);
             }
@@ -135,7 +137,9 @@ public class AppTest2 extends LTBCMainTestCase {
                             member.value,
                             ScriptBuilder.createP2WSHOutputScript(rs));
 
-                    tree.leafs.add(new ArkTree.ArkLeafs(leafOutput.getOutPointFor(), rs.getProgram()));
+                    tree.leafs.add(new ArkTree.ArkLeaf(leafOutput, rs.getProgram()));
+
+                    System.out.println(leafOutput.getOutPointFor());
 
                 } else {
 
@@ -151,6 +155,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
             fund(trunkTx, arkService);
 
+            System.out.println(trunkTx.getTxId());
             tree.nodes.put(trunkTx);
 
             subNodes.forEach(subNode -> {
@@ -258,11 +263,11 @@ public class AppTest2 extends LTBCMainTestCase {
             }
         }
 
-        static class ArkLeafs {
-            TransactionOutPoint outpoint;
+        static class ArkLeaf {
+            TransactionOutput outpoint;
             byte[] program;
 
-            public ArkLeafs(TransactionOutPoint outpoint, byte[] program) {
+            public ArkLeaf(TransactionOutput outpoint, byte[] program) {
                 this.outpoint = outpoint;
                 this.program = program;
             }
@@ -271,7 +276,7 @@ public class AppTest2 extends LTBCMainTestCase {
         Collection<Sha256Hash> roots;
         NodeMap nodes = new NodeMap();
         Map<Sha256Hash, byte[]> locks = new HashMap<>();
-        Collection<ArkLeafs> leafs = new ArrayList<>();
+        Collection<ArkLeaf> leafs = new ArrayList<>();
 
         TransactionOutput getOutput(TransactionOutPoint top) {
             return nodes.get(top.getHash()).getOutput(top.getIndex());
@@ -515,6 +520,65 @@ public class AppTest2 extends LTBCMainTestCase {
 
                 byte[] rs1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXONodeScript(Stream.of(alice, bob).map(Actor::getActivePublicKey).toArray(byte[][]::new)).program()));
 
+                Map<byte[], Map<Sha256Hash, byte[]>> signedStackMap = Maps.newHashMap();
+
+                for (ArkTree.ArkLeaf leaf : tree.leafs) {
+                    byte[] pubKey = Script.parse(leaf.program).chunks().get(1).data;
+                    FoundingMember member = fml.stream().filter(foundingMember -> Arrays.equals(foundingMember.key, pubKey)).findFirst().orElseThrow();
+
+                    List<ArkVirtualTransactionNode> list = new ArrayList<>();
+
+                    Transaction transaction;
+                    for (TransactionOutPoint outPoint = leaf.outpoint.getOutPointFor();
+                         !tree.roots.contains(outPoint.hash());
+                         outPoint = transaction.getInput(0).getOutpoint()) {
+
+                        ;
+                        //The branch transaction
+                        transaction = tree.nodes.get(outPoint.hash());
+                        TransactionOutPoint branchOutPoint = transaction.getInput(0).getOutpoint();
+                        TransactionOutput output = tree.nodes.get(branchOutPoint.hash()).getOutput(branchOutPoint.index());
+//                        TransactionOutput output = transaction.getOutput(outPoint.index());
+
+                        //rlookup the program that unlocks the vtxo in the transaction
+
+
+                        byte[] lock = tree.locks.get(
+                                Sha256Hash.wrap(Objects.requireNonNull(
+                                        Script.parse(output.getScriptBytes()).chunks().get(1).data)));
+
+                        list.addFirst(new ArkVirtualTransactionNode(transaction.serialize(), lock));
+
+//                        Sha256Hash newHash = transaction.getInput(0).getOutpoint().hash();
+//                        Transaction t2 = tree.nodes.get(newHash);
+
+
+                        System.out.println("sdfsdfsd");
+
+                    }
+
+                    System.out.println(Base64.getEncoder().encodeToString(rs1));
+                    System.out.println(Base64.getEncoder().encodeToString(rs1_1));
+                    System.out.println(Base64.getEncoder().encodeToString(rs1_1_1));
+
+                    for (ArkVirtualTransactionNode node : list) {
+                        System.out.println(Base64.getEncoder().encodeToString(node.program));
+                    }
+
+                    byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
+
+                    System.out.println(Base64.getEncoder().encodeToString(rootBytes));
+                    System.out.println(Base64.getEncoder().encodeToString(rootTx.serialize()));
+
+                    ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, list);
+
+                    ArkUser user = Arrays.stream(users).filter(arkUser -> Arrays.equals(arkUser.activeKey.getPubKey(), pubKey)).findFirst().orElseThrow();
+
+                    Map<Sha256Hash, byte[]> signedStack = user.signStack(avts);
+
+                    signedStackMap.put(pubKey, signedStack);
+                    System.out.println("sdfsdfsd");
+                }
 
                 // Alice and Bobs branch
                 ArkVirtualTransactionStack vtxs_1_1 = new ArkVirtualTransactionStack(rootTx.serialize(), List.of(
