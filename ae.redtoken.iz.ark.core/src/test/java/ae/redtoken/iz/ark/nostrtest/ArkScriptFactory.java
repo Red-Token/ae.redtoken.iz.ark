@@ -1,5 +1,6 @@
 package ae.redtoken.iz.ark.nostrtest;
 
+import com.google.common.collect.Lists;
 import org.bitcoinj.core.TransactionWitness;
 import org.bitcoinj.crypto.ECKey;
 import org.bitcoinj.crypto.TransactionSignature;
@@ -183,5 +184,16 @@ public class ArkScriptFactory {
 
         TransactionWitness witness = TransactionWitness.of(pushes);
         return witness;
+    }
+
+    public byte[][] extractUserHashFromVTXO(byte[] program) {
+        Script programScript = Script.parse(program);
+        List<byte[]> userSignatures = Lists.newArrayList();
+
+        for (int i = 0; programScript.chunks().get(i + 2).opcode != ScriptOpCodes.OP_CHECKSIG; i += 2) {
+            userSignatures.add(programScript.chunks().get(i + 1).data);
+        }
+
+        return userSignatures.toArray(new byte[0][]);
     }
 }
