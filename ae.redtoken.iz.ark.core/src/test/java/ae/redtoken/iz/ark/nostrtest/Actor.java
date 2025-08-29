@@ -11,11 +11,13 @@ import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.kits.WalletAppKit;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
+import org.junit.jupiter.api.Assertions;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -108,10 +110,10 @@ public class Actor {
 
     public Map<Sha256Hash, byte[]> signStack(AppTest2.ArkVirtualTransactionStack vtxs) {
 
-        Map<Sha256Hash, Transaction> treeMap = new HashMap<>();
+        Map<Sha256Hash, Transaction> transactionMap = new HashMap<>();
 //        Transaction root = new Transaction(params, vtxs.root);
         Transaction root = Transaction.read(ByteBuffer.wrap(vtxs.root));
-        treeMap.put(root.getTxId(), root);
+        transactionMap.put(root.getTxId(), root);
         Map<Sha256Hash, byte[]> sigMap = new HashMap<>();
 
 //        // Connect the input
@@ -125,23 +127,35 @@ public class Actor {
 //            byte[] sigABin = alice.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
 //            byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
 
-        vtxs.nodes.stream().forEachOrdered(node -> {
+        for (AppTest2.ArkVirtualTransactionNode node : vtxs.nodes) {
 //            Transaction t = new Transaction(params, node.transaction);
             Transaction t = Transaction.read(ByteBuffer.wrap(node.transaction));
-            treeMap.put(t.getTxId(), t);
+            Transaction put1 = transactionMap.put(t.getTxId(), t);
+            Assertions.assertNull(put1);
+        }
 
-            t.getInputs().stream().filter(ti -> treeMap.containsKey(ti.getOutpoint().hash())).forEachOrdered(
-                    ti -> {
-                        TransactionOutput to = AppTest2.findOutputWitness(treeMap.get(ti.getOutpoint().hash()), node.program);
-                        sigMap.put(Sha256Hash.of(node.program), signInputWitness(node.transaction, node.program, ti.getIndex(), to.getValue()));
-                    }
-            );
+        for (AppTest2.ArkVirtualTransactionNode node : vtxs.nodes) {
+            Transaction t = Transaction.read(ByteBuffer.wrap(node.transaction));
+            List<TransactionInput> list = t.getInputs().stream().filter(ti -> transactionMap.containsKey(ti.getOutpoint().hash())).toList();
+
+            if(list.isEmpty()) {
+                System.out.println("WTF!");
+            }
+
+            for (TransactionInput ti : list) {
+                TransactionOutput to = AppTest2.findOutputWitness(transactionMap.get(ti.getOutpoint().hash()), node.program);
+                byte[] put = sigMap.put(Sha256Hash.of(node.program), signInputWitness(node.transaction, node.program, ti.getIndex(), to.getValue()));
+                Assertions.assertNull(put);
+                System.out.println("DOING:" + to);
+            }
 
             System.out.println(t);
 //
 //
 //            byte[] sigABin = signInputWitness(params, node.transaction, node.program, node.index, Coin.valueOf(node.value));
-        });
+        }
+
+        Assertions.assertEquals(vtxs.nodes.size(), sigMap.size());
 
         return sigMap;
     }
