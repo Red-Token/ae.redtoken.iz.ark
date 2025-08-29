@@ -282,6 +282,31 @@ public class AppTest2 extends LTBCMainTestCase {
         }
     }
 
+    static void assignWitness(Transaction transaction, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
+            TransactionInput ti1 = transaction.getInput(0);
+
+            Script outputScript = Script.parse(Objects.requireNonNull(ti1.getConnectedOutput()).getScriptBytes());
+            Sha256Hash programHash = Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(outputScript));
+
+            byte[] program = tree.locks.get(programHash);
+            byte[][] userKeys = asf.extractUserHashFromVTXO(program);
+
+            List<byte[]> userSignatures = Lists.newArrayList();
+
+            for(byte[] userKey : userKeys) {
+                userSignatures.addFirst(signedStackMap.get(ByteBuffer.wrap(userKey)).get(programHash));
+            }
+
+            byte[][] userSigs = userSignatures.toArray(new byte[userSignatures.size()][]);
+
+            TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
+                    userSigs,
+                    arkServiceSignatures.get(programHash),
+                    program);
+
+            setWitness(ti1, witness);
+    }
+
 
     /**
      *
@@ -530,77 +555,65 @@ public class AppTest2 extends LTBCMainTestCase {
 
                 // Add the signatures to the root node
                 {
-                    TransactionInput ti1 = vtx1.getInput(0);
-
-
-
-                    Script outputScript = Script.parse(ti1.getConnectedOutput().getScriptBytes());
-                    Sha256Hash programHash = Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(outputScript));
-
-
-
-                    byte[] program = tree.locks.get(programHash);
-//                    Script programScript = Script.parse(program);
-
-                    byte[][] userKeys = asf.extractUserHashFromVTXO(program);
-
-                    List<byte[]> userSignatures = Lists.newArrayList();
-
-                    for(byte[] userKey : userKeys) {
-                        userSignatures.addFirst(signedStackMap.get(ByteBuffer.wrap(userKey)).get(programHash));
-                    }
-
-//                    for (int i = 0; programScript.chunks().get(i + 2).opcode != ScriptOpCodes.OP_CHECKSIG; i += 2) {
-//                        byte[] key = programScript.chunks().get(i + 1).data;
-//                        userSignatures.addFirst(signedStackMap.get(ByteBuffer.wrap(Objects.requireNonNull(key))).get(programHash));
+                    assignWitness(vtx1, tree, asf, signedStackMap, arkServiceSignatures);
+//
+//                    TransactionInput ti1 = vtx1.getInput(0);
+//
+//                    Script outputScript = Script.parse(Objects.requireNonNull(ti1.getConnectedOutput()).getScriptBytes());
+//                    Sha256Hash programHash = Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(outputScript));
+//
+//                    byte[] program = tree.locks.get(programHash);
+//                    byte[][] userKeys = asf.extractUserHashFromVTXO(program);
+//
+//                    List<byte[]> userSignatures = Lists.newArrayList();
+//
+//                    for(byte[] userKey : userKeys) {
+//                        userSignatures.addFirst(signedStackMap.get(ByteBuffer.wrap(userKey)).get(programHash));
 //                    }
-
-                    byte[][] userSigs = userSignatures.toArray(new byte[userSignatures.size()][]);
-
-//                    byte[][] userSigs2 = new byte[][]{
-//                            davidSignatures.get(programHash),
-//                            carolSignatures.get(programHash),
-//                            bobSignatures.get(programHash),
-//                            aliceSignatures.get(programHash)
-//                    };
-
-                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
-                            userSigs,
-                            arkServiceSignatures.get(programHash),
-                            program);
-
-                    setWitness(ti1, witness);
+//
+//                    byte[][] userSigs = userSignatures.toArray(new byte[userSignatures.size()][]);
+//
+//                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
+//                            userSigs,
+//                            arkServiceSignatures.get(programHash),
+//                            program);
+//
+//                    setWitness(ti1, witness);
                 }
 
                 // Sign the input by everybody
                 {
-                    TransactionInput ti_1_1 = vtx1_1.getInput(0);
-                    byte[] program = rs1_1;
-                    Sha256Hash programHash = Sha256Hash.of(program);
-                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
-                            new byte[][]{
-                                    bobSignatures.get(programHash),
-                                    aliceSignatures.get(programHash)
-                            },
-                            arkServiceSignatures.get(programHash),
-                            program);
-                    setWitness(ti_1_1, witness);
+                    assignWitness(vtx1_1, tree, asf, signedStackMap, arkServiceSignatures);
+
+//                    TransactionInput ti_1_1 = vtx1_1.getInput(0);
+//                    byte[] program = rs1_1;
+//                    Sha256Hash programHash = Sha256Hash.of(program);
+//                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
+//                            new byte[][]{
+//                                    bobSignatures.get(programHash),
+//                                    aliceSignatures.get(programHash)
+//                            },
+//                            arkServiceSignatures.get(programHash),
+//                            program);
+//                    setWitness(ti_1_1, witness);
                 }
 
                 // Sign the input by everybody
                 {
-                    TransactionInput ti_1_2 = vtx1_2.getInput(0);
-                    byte[] program = rs1_2;
-                    Sha256Hash programHash = Sha256Hash.of(program);
-
-                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
-                            new byte[][]{
-                                    davidSignatures.get(programHash),
-                                    carolSignatures.get(programHash)
-                            },
-                            arkServiceSignatures.get(programHash),
-                            program);
-                    setWitness(ti_1_2, witness);
+                    assignWitness(vtx1_2, tree, asf, signedStackMap, arkServiceSignatures);
+//
+//                    TransactionInput ti_1_2 = vtx1_2.getInput(0);
+//                    byte[] program = rs1_2;
+//                    Sha256Hash programHash = Sha256Hash.of(program);
+//
+//                    TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
+//                            new byte[][]{
+//                                    davidSignatures.get(programHash),
+//                                    carolSignatures.get(programHash)
+//                            },
+//                            arkServiceSignatures.get(programHash),
+//                            program);
+//                    setWitness(ti_1_2, witness);
                 }
 
                 // Now let's complete and fund this transaction
