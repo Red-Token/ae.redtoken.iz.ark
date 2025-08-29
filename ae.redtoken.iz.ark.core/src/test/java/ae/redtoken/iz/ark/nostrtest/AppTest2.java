@@ -282,10 +282,8 @@ public class AppTest2 extends LTBCMainTestCase {
         }
     }
 
-    static void assignWitness(Transaction transaction, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
-        TransactionInput ti1 = transaction.getInput(0);
-
-        Script outputScript = Script.parse(Objects.requireNonNull(ti1.getConnectedOutput()).getScriptBytes());
+    static void assignWitness(TransactionInput ti , ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
+        Script outputScript = Script.parse(Objects.requireNonNull(ti.getConnectedOutput()).getScriptBytes());
         Sha256Hash programHash = Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(outputScript));
 
         byte[] program = tree.locks.get(programHash);
@@ -304,7 +302,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 arkServiceSignatures.get(programHash),
                 program);
 
-        setWitness(ti1, witness);
+        setWitness(ti, witness);
     }
 
 
@@ -521,13 +519,13 @@ public class AppTest2 extends LTBCMainTestCase {
                 Transaction vtx1_2 = vtx1.getOutput(1).getSpentBy().getParentTransaction();
 
                 // Add the signatures to the root node
-                assignWitness(vtx1, tree, asf, signedStackMap, arkServiceSignatures);
+                assignWitness(vtx1.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
 
                 // Sign the input by everybody
-                assignWitness(vtx1_1, tree, asf, signedStackMap, arkServiceSignatures);
+                assignWitness(vtx1_1.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
 
                 // Sign the input by everybody
-                assignWitness(vtx1_2, tree, asf, signedStackMap, arkServiceSignatures);
+                assignWitness(vtx1_2.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
 
                 // Now let's complete and fund this transaction
                 // Todo: this part here needs to be rewritten to work with the signing strategy
