@@ -262,27 +262,22 @@ public class AppTest2 extends LTBCMainTestCase {
         record ArkLeaf(TransactionOutPoint outPoint) {
         }
 
-//        static class ArkLeaf {
-//            TransactionOutput output;
-////            byte[] program;
-//
-//            public ArkLeaf(TransactionOutput output, byte[] program) {
-//                this.output = output;
-        /// /                this.program = program;
-//            }
-//        }
-
         Collection<Sha256Hash> roots;
         NodeMap nodes = new NodeMap();
         Map<Sha256Hash, byte[]> locks = new HashMap<>();
         Collection<ArkLeaf> leafs = new ArrayList<>();
 
         TransactionOutput getOutput(TransactionOutPoint top) {
-            return nodes.get(top.getHash()).getOutput(top.getIndex());
+            return nodes.get(top.hash()).getOutput(top.index());
+        }
+
+        byte[] getProgram(TransactionOutPoint top) {
+            byte[] hash = ScriptPattern.extractHashFromP2SH(Script.parse(getOutput(top).getScriptBytes()));
+            return locks.get(Sha256Hash.wrap(hash));
         }
     }
 
-    static void assignWitness(TransactionInput ti , ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
+    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
         Script outputScript = Script.parse(Objects.requireNonNull(ti.getConnectedOutput()).getScriptBytes());
         Sha256Hash programHash = Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(outputScript));
 
@@ -382,11 +377,17 @@ public class AppTest2 extends LTBCMainTestCase {
 
         // Start the ARK
         /**
-         *  ARK Initiate
+         *  ARK RoundInitiate
          *      - Inform that a new ARK is starting and the minimumEntry to join
          *
          *  ARK OnboardingRequest
          *      - Send in your start key and the Inputs to join with
+         *
+         *  ARK NewVTXTreeProposal
+         *      - Send out the tree for review
+         *
+         *  ARK NewVTXTreeAccept
+         *      - Accept the tree (by sign the nodes)
          *
          *  ARK StartConfirmationRequest
          *      - Send out the start node for signing
@@ -402,13 +403,19 @@ public class AppTest2 extends LTBCMainTestCase {
         {
             List<ArkUser> initiators = List.of(alice, bob, carol, david);
 
-            record ArkInitiate(Coin minValue) {
+            record ArkRoundInitiate(Coin minValue) {
             }
 
-            record ArkOnboardingRequest(ECKey key, List<TransactionInput> inputs) {
+            record ArkOnboardingRequest(byte[] key, List<TransactionInput> inputs) {
             }
 
-            ArkInitiate aim = new ArkInitiate(Coin.valueOf(0, 10));
+            record NewVTXTreeProposal() {
+            }
+
+            record NewVTXTreeAccept(Map<Sha256Hash,byte[]> signedStack) {
+            }
+
+            ArkRoundInitiate aim = new ArkRoundInitiate(Coin.valueOf(0, 10));
 
 
             ///  Create the root node
@@ -451,33 +458,54 @@ public class AppTest2 extends LTBCMainTestCase {
 
             // Now we have money in our fundingOutput
 
-            // Start creating the tree
-            FoundingMember afm = new FoundingMember(Coin.valueOf(1, 0), alice.getActivePublicKey());
-            FoundingMember bfm = new FoundingMember(Coin.valueOf(1, 0), bob.getActivePublicKey());
-            FoundingMember cfm = new FoundingMember(Coin.valueOf(1, 0), carol.getActivePublicKey());
-            FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
 
-            List<FoundingMember> fml = List.of(afm, bfm, cfm, dfm);
+            /// START
+
+            ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10));
+
+            /// The users ask to onboard the ARK
+            Collection<ArkOnboardingRequest> aors = Lists.newArrayList();
+
+            for (Actor user : initiators) {
+                ArkOnboardingRequest aor = new ArkOnboardingRequest(user.getActivePublicKey(), new LinkedList<>());
+                aors.add(aor);
+            }
+
+            /// Service create the tree
+
+
+            // Start creating the tree
+//            FoundingMember afm = new FoundingMember(Coin.valueOf(1, 0), alice.getActivePublicKey());
+//            FoundingMember bfm = new FoundingMember(Coin.valueOf(1, 0), bob.getActivePublicKey());
+//            FoundingMember cfm = new FoundingMember(Coin.valueOf(1, 0), carol.getActivePublicKey());
+//            FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
+
+//            List<FoundingMember> fml = List.of(afm, bfm, cfm, dfm);
+            List<FoundingMember> fml = aors.stream().map(arkOnboardingRequest -> new FoundingMember(Coin.valueOf(1, 0), arkOnboardingRequest.key)).toList();
             List<TransactionOutput> fol = List.of(arkFundingOutput);
 
             ArkTree tree = new ArkTree();
             tree.arkService = arkService;
 
             // Now we make the next node.
-            {
-                arf.createArkTree(tree, fml, fol);
+            arf.createArkTree(tree, fml, fol);
 
-                Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
+            ///
 
-                // On the ArkService side
-                Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap = Maps.newHashMap();
-                Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
+            Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
 
+            // On the ArkService side
+            // This is where we collect the response
+            Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap = Maps.newHashMap();
+
+            Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
+
+            for (ArkUser user : users) {
                 for (ArkTree.ArkLeaf leaf : tree.leafs) {
-                    TransactionOutput leafOutput = tree.nodes.get(leaf.outPoint.hash()).getOutput(leaf.outPoint.index());
-                    byte[] hash = ScriptPattern.extractHashFromP2SH(Script.parse(leafOutput.getScriptBytes()));
-                    byte[] program = tree.locks.get(Sha256Hash.wrap(hash));
-                    byte[] pubKey = asf.extractUserHashesFromVTXO(program)[0];
+                    byte[] pubKey = asf.extractUserHashesFromVTXO(tree.getProgram(leaf.outPoint))[0];
+
+                    if (!Arrays.equals(pubKey, user.getActivePublicKey()))
+                        continue;
 
                     List<ArkVirtualTransactionNode> list = new ArrayList<>();
 
@@ -503,112 +531,115 @@ public class AppTest2 extends LTBCMainTestCase {
                     byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
                     ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, list);
 
-                    ArkUser user = Arrays.stream(users).filter(arkUser -> Arrays.equals(arkUser.getActivePublicKey(), pubKey)).findFirst().orElseThrow();
+//                    ArkUser user = Arrays.stream(users).filter(arkUser -> Arrays.equals(arkUser.getActivePublicKey(), pubKey)).findFirst().orElseThrow();
                     Map<Sha256Hash, byte[]> signedStack = user.signStack(avts);
+
+                    NewVTXTreeAccept accept = new NewVTXTreeAccept(signedStack);
+
                     signedStackMap.put(ByteBuffer.wrap(user.getActivePublicKey()), signedStack);
                 }
-
-                // Service provides branch
-                ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), avntMap.values());
-
-                // S signs the tree
-                Map<Sha256Hash, byte[]> arkServiceSignatures = arkService.signStack(vtxs_full);
-
-                Transaction vtx1 = rootTx.getOutput(0).getSpentBy().getParentTransaction();
-                Transaction vtx1_1 = vtx1.getOutput(0).getSpentBy().getParentTransaction();
-                Transaction vtx1_2 = vtx1.getOutput(1).getSpentBy().getParentTransaction();
-
-                // Add the signatures to the root node
-                assignWitness(vtx1.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
-
-                // Sign the input by everybody
-                assignWitness(vtx1_1.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
-
-                // Sign the input by everybody
-                assignWitness(vtx1_2.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
-
-                // Now let's complete and fund this transaction
-                // Todo: this part here needs to be rewritten to work with the signing strategy
-                {
-                    // Create the witness
-                    // TODO move this to the scriptfactory
-                    int index = 0;
-                    byte[] witnessBytes = arkService.createP2WPKHWitness(rootTx.serialize(), index, arkFundingOutput.getValue());
-                    setWitness(rootTx.getInput(index), TransactionWitness.read(ByteBuffer.wrap(witnessBytes)));
-
-                    // Send it out
-                    arkService.kit.peerGroup().broadcastTransaction(rootTx);
-
-                    // Mine
-                    mineAndWait();
-                }
-
-                ///  The ARK Round is deposit
-
-                alice.setNewTree(tree);
-                bob.setNewTree(tree);
-                carol.setNewTree(tree);
-                david.setNewTree(tree);
-
-                for (ArkUser user : List.of(alice, bob, carol, david)) {
-                    Assertions.assertEquals(1, user.unspentVTXOs.size());
-                }
-
-                // Collaborative exit
-                // Agreed exit for A
-                Transaction vtx1_1_1 = new Transaction();
-                vtx1_1_1.setVersion(2);
-
-                // Create the output and send in the hash of the script into that output.
-                vtx1_1_1.addOutput(Coin.valueOf(0, 66), alice.kit.wallet().freshReceiveAddress());
-
-                TransactionOutput output = alice.unspentVTXOs.stream().findFirst().orElseThrow();
-
-                // Connect the input
-                TransactionInput ti_1_1_1 = vtx1_1_1.addInput(output);
-                fund(vtx1_1_1, arkService);
-
-                // Lets rool!
-                byte[] rs1_1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(alice.getActivePublicKey()).program()));
-                byte[] sigABin = alice.signInputWitness(vtx1_1_1.serialize(), rs1_1_1, ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
-
-                // Collaborative exit request
-                // Set of UTXO:s to exit, OutPoint
-                // This is on the ARK Service side
-
-                Map<Integer, SignatureRequest> programMap = Map.of(ti_1_1_1.getIndex(), new SignatureRequest(rs1_1_1, sigABin));
-
-                Transaction tx = Transaction.read(ByteBuffer.wrap(vtx1_1_1.serialize()));
-                Map<Integer, byte[]> signatures = new HashMap<>();
-
-                tree.nodes.put(vtx1_1_1.getTxId(), vtx1_1_1);
-
-                for (Integer index : programMap.keySet()) {
-                    TransactionInput ti = tx.getInput(index);
-                    TransactionOutput to = tree.getOutput(ti.getOutpoint());
-
-                    if (!to.isAvailableForSpending()) {
-                        throw new RuntimeException("Not available to send transaction");
-                    }
-
-                    to.markAsSpent(ti);
-                    signatures.put(index, arkService.signInputWitness(tx.serialize(), programMap.get(index).program, index, to.getValue()));
-                }
-
-
-                // Sign the input by everybody
-                {
-                    setWitness(ti_1_1_1, asf.createVTXOLeafColaborativeUnlockWitness(sigABin, signatures.get(ti_1_1_1.getIndex()), rs1_1_1));
-                }
-
-                // Let's make an on-chain charity output
-                send(vtx1, arkService, alice);
-                send(vtx1_1, arkService, alice);
-                send(vtx1_1_1, arkService, alice);
-
-                System.out.println("HLLSLSSL");
-                Assertions.assertEquals(166000000, alice.kit.wallet().getBalance().value);
             }
+
+            // Service provides branch
+            ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), avntMap.values());
+
+            // S signs the tree
+            Map<Sha256Hash, byte[]> arkServiceSignatures = arkService.signStack(vtxs_full);
+
+            Transaction vtx1 = rootTx.getOutput(0).getSpentBy().getParentTransaction();
+            Transaction vtx1_1 = vtx1.getOutput(0).getSpentBy().getParentTransaction();
+            Transaction vtx1_2 = vtx1.getOutput(1).getSpentBy().getParentTransaction();
+
+            // Add the signatures to the root node
+            assignWitness(vtx1.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
+
+            // Sign the input by everybody
+            assignWitness(vtx1_1.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
+
+            // Sign the input by everybody
+            assignWitness(vtx1_2.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
+
+            // Now let's complete and fund this transaction
+            // Todo: this part here needs to be rewritten to work with the signing strategy
+            {
+                // Create the witness
+                // TODO move this to the scriptfactory
+                int index = 0;
+                byte[] witnessBytes = arkService.createP2WPKHWitness(rootTx.serialize(), index, arkFundingOutput.getValue());
+                setWitness(rootTx.getInput(index), TransactionWitness.read(ByteBuffer.wrap(witnessBytes)));
+
+                // Send it out
+                arkService.kit.peerGroup().broadcastTransaction(rootTx);
+
+                // Mine
+                mineAndWait();
+            }
+
+            ///  The ARK Round is deposit
+
+            alice.setNewTree(tree);
+            bob.setNewTree(tree);
+            carol.setNewTree(tree);
+            david.setNewTree(tree);
+
+            for (ArkUser user : List.of(alice, bob, carol, david)) {
+                Assertions.assertEquals(1, user.unspentVTXOs.size());
+            }
+
+            // Collaborative exit
+            // Agreed exit for A
+            Transaction vtx1_1_1 = new Transaction();
+            vtx1_1_1.setVersion(2);
+
+            // Create the output and send in the hash of the script into that output.
+            vtx1_1_1.addOutput(Coin.valueOf(0, 66), alice.kit.wallet().freshReceiveAddress());
+
+            TransactionOutput output = alice.unspentVTXOs.stream().findFirst().orElseThrow();
+
+            // Connect the input
+            TransactionInput ti_1_1_1 = vtx1_1_1.addInput(output);
+            fund(vtx1_1_1, arkService);
+
+            // Lets rool!
+            byte[] rs1_1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(alice.getActivePublicKey()).program()));
+            byte[] sigABin = alice.signInputWitness(vtx1_1_1.serialize(), rs1_1_1, ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
+
+            // Collaborative exit request
+            // Set of UTXO:s to exit, OutPoint
+            // This is on the ARK Service side
+
+            Map<Integer, SignatureRequest> programMap = Map.of(ti_1_1_1.getIndex(), new SignatureRequest(rs1_1_1, sigABin));
+
+            Transaction tx = Transaction.read(ByteBuffer.wrap(vtx1_1_1.serialize()));
+            Map<Integer, byte[]> signatures = new HashMap<>();
+
+            tree.nodes.put(vtx1_1_1.getTxId(), vtx1_1_1);
+
+            for (Integer index : programMap.keySet()) {
+                TransactionInput ti = tx.getInput(index);
+                TransactionOutput to = tree.getOutput(ti.getOutpoint());
+
+                if (!to.isAvailableForSpending()) {
+                    throw new RuntimeException("Not available to send transaction");
+                }
+
+                to.markAsSpent(ti);
+                signatures.put(index, arkService.signInputWitness(tx.serialize(), programMap.get(index).program, index, to.getValue()));
+            }
+
+
+            // Sign the input by everybody
+            {
+                setWitness(ti_1_1_1, asf.createVTXOLeafColaborativeUnlockWitness(sigABin, signatures.get(ti_1_1_1.getIndex()), rs1_1_1));
+            }
+
+            // Let's make an on-chain charity output
+            send(vtx1, arkService, alice);
+            send(vtx1_1, arkService, alice);
+            send(vtx1_1_1, arkService, alice);
+
+            System.out.println("HLLSLSSL");
+            Assertions.assertEquals(166000000, alice.kit.wallet().getBalance().value);
         }
 
         /**
