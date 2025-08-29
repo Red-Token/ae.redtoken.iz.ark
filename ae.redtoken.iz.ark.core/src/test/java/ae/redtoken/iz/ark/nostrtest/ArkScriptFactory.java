@@ -186,7 +186,7 @@ public class ArkScriptFactory {
         return witness;
     }
 
-    public byte[][] extractUserHashFromVTXO(byte[] program) {
+    public byte[][] extractUserHashesFromVTXO(byte[] program) {
         Script programScript = Script.parse(program);
         List<byte[]> userSignatures = Lists.newArrayList();
 
