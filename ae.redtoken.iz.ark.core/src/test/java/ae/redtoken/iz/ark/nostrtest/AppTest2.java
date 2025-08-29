@@ -31,6 +31,24 @@ import static ae.redtoken.iz.ark.nostrtest.TestNostr.RELAYS;
  */
 public class AppTest2 extends LTBCMainTestCase {
 
+    record ArkRoundInitiate(Coin minValue) {
+    }
+
+    record ArkOnboardingRequest(byte[] key, List<TransactionInput> inputs) {
+    }
+
+    record NewVTXTreeProposal(ArkTree tree) {
+    }
+
+    record NewVTXTreeAccept(Map<Sha256Hash, byte[]> signedStack) {
+    }
+
+    record StartConfirmationRequest(Map<Sha256Hash, byte[]> arkServiceSignatures) {
+    }
+
+    record StartAccept(Map<TransactionOutPoint, byte[]> witnessMap) {
+    }
+
     public static class ArkRoundFactory {
         final NetworkParameters params;
         final ArkScriptFactory asf;
@@ -277,7 +295,8 @@ public class AppTest2 extends LTBCMainTestCase {
         }
     }
 
-    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
+    //    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
+    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, NewVTXTreeAccept> acceptMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
         Script outputScript = Script.parse(Objects.requireNonNull(ti.getConnectedOutput()).getScriptBytes());
         Sha256Hash programHash = Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(outputScript));
 
@@ -287,7 +306,7 @@ public class AppTest2 extends LTBCMainTestCase {
         List<byte[]> userSignatures = Lists.newArrayList();
 
         for (byte[] userKey : userKeys) {
-            userSignatures.addFirst(signedStackMap.get(ByteBuffer.wrap(userKey)).get(programHash));
+            userSignatures.addFirst(acceptMap.get(ByteBuffer.wrap(userKey)).signedStack.get(programHash));
         }
 
         byte[][] userSigs = userSignatures.toArray(new byte[userSignatures.size()][]);
@@ -336,7 +355,7 @@ public class AppTest2 extends LTBCMainTestCase {
         ArkUser[] users = Arrays.asList(alice, bob, carol, david, eve, freddy).toArray(new ArkUser[0]);
 
         final double coinsToSendToArkService = 10;
-        final double coinsToSendToUsers = 1;
+        final double coinsToSendToUsers = 2;
 
         Assertions.assertEquals(Coin.ZERO, arkService.kit.wallet().getBalance());
 
@@ -402,18 +421,6 @@ public class AppTest2 extends LTBCMainTestCase {
 
         {
             List<ArkUser> initiators = List.of(alice, bob, carol, david);
-
-            record ArkRoundInitiate(Coin minValue) {
-            }
-
-            record ArkOnboardingRequest(byte[] key, List<TransactionInput> inputs) {
-            }
-
-            record NewVTXTreeProposal() {
-            }
-
-            record NewVTXTreeAccept(Map<Sha256Hash,byte[]> signedStack) {
-            }
 
             ArkRoundInitiate aim = new ArkRoundInitiate(Coin.valueOf(0, 10));
 
@@ -490,17 +497,15 @@ public class AppTest2 extends LTBCMainTestCase {
             // Now we make the next node.
             arf.createArkTree(tree, fml, fol);
 
-            ///
+            /// Send it out for a review
+            NewVTXTreeProposal proposal = new NewVTXTreeProposal(tree);
 
-            Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
-
-            // On the ArkService side
-            // This is where we collect the response
-            Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap = Maps.newHashMap();
-
+            Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
             Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
 
             for (ArkUser user : users) {
+
+                ///  Each user goes over the proposal
                 for (ArkTree.ArkLeaf leaf : tree.leafs) {
                     byte[] pubKey = asf.extractUserHashesFromVTXO(tree.getProgram(leaf.outPoint))[0];
 
@@ -531,14 +536,15 @@ public class AppTest2 extends LTBCMainTestCase {
                     byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
                     ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, list);
 
-//                    ArkUser user = Arrays.stream(users).filter(arkUser -> Arrays.equals(arkUser.getActivePublicKey(), pubKey)).findFirst().orElseThrow();
                     Map<Sha256Hash, byte[]> signedStack = user.signStack(avts);
 
+                    // The response
                     NewVTXTreeAccept accept = new NewVTXTreeAccept(signedStack);
-
-                    signedStackMap.put(ByteBuffer.wrap(user.getActivePublicKey()), signedStack);
+                    nvtaMap.put(ByteBuffer.wrap(user.getActivePublicKey()), accept);
                 }
             }
+
+            Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
 
             // Service provides branch
             ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), avntMap.values());
@@ -546,18 +552,30 @@ public class AppTest2 extends LTBCMainTestCase {
             // S signs the tree
             Map<Sha256Hash, byte[]> arkServiceSignatures = arkService.signStack(vtxs_full);
 
+            StartConfirmationRequest scr = new StartConfirmationRequest(arkServiceSignatures);
+
+            /// Users go over the tree and add all the witnesses to the tree
+
+            for (ArkUser user : users) {
+
+            }
+
+
             Transaction vtx1 = rootTx.getOutput(0).getSpentBy().getParentTransaction();
             Transaction vtx1_1 = vtx1.getOutput(0).getSpentBy().getParentTransaction();
             Transaction vtx1_2 = vtx1.getOutput(1).getSpentBy().getParentTransaction();
 
             // Add the signatures to the root node
-            assignWitness(vtx1.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
+            assignWitness(vtx1.getInput(0), tree, asf, nvtaMap, scr.arkServiceSignatures);
 
             // Sign the input by everybody
-            assignWitness(vtx1_1.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
+            assignWitness(vtx1_1.getInput(0), tree, asf, nvtaMap, scr.arkServiceSignatures);
 
             // Sign the input by everybody
-            assignWitness(vtx1_2.getInput(0), tree, asf, signedStackMap, arkServiceSignatures);
+            assignWitness(vtx1_2.getInput(0), tree, asf, nvtaMap, scr.arkServiceSignatures);
+
+
+            /// The then sign
 
             // Now let's complete and fund this transaction
             // Todo: this part here needs to be rewritten to work with the signing strategy
@@ -566,14 +584,23 @@ public class AppTest2 extends LTBCMainTestCase {
                 // TODO move this to the scriptfactory
                 int index = 0;
                 byte[] witnessBytes = arkService.createP2WPKHWitness(rootTx.serialize(), index, arkFundingOutput.getValue());
-                setWitness(rootTx.getInput(index), TransactionWitness.read(ByteBuffer.wrap(witnessBytes)));
+                Map<TransactionOutPoint, byte[]> witnessMap = Maps.newHashMap();
 
-                // Send it out
-                arkService.kit.peerGroup().broadcastTransaction(rootTx);
+                witnessMap.put(rootTx.getInput(index).getOutpoint(), witnessBytes);
 
-                // Mine
-                mineAndWait();
+                /// The response
+                StartAccept sa = new StartAccept(witnessMap);
+
+                // TODO SUPER HACK!
+                setWitness(rootTx.getInput(index), TransactionWitness.read(ByteBuffer.wrap(sa.witnessMap.get(rootTx.getInput(index).getOutpoint()))));
             }
+
+            /// Send it out
+            arkService.kit.peerGroup().broadcastTransaction(rootTx);
+
+            // Mine
+            mineAndWait();
+
 
             ///  The ARK Round is deposit
 
@@ -639,7 +666,7 @@ public class AppTest2 extends LTBCMainTestCase {
             send(vtx1_1_1, arkService, alice);
 
             System.out.println("HLLSLSSL");
-            Assertions.assertEquals(166000000, alice.kit.wallet().getBalance().value);
+            Assertions.assertEquals(266000000, alice.kit.wallet().getBalance().value);
         }
 
         /**
