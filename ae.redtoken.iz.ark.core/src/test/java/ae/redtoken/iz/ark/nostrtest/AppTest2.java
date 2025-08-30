@@ -440,20 +440,20 @@ public class AppTest2 extends LTBCMainTestCase {
 
             ArkRoundFactory arf = new ArkRoundFactory(params, asf, arkService);
 
-            // This is the output that is used to FUND the rootNode (the fundingInput in the rootNode takes its capital from here
-            TransactionOutput arkFundingOutput;
-
-
-//            Script arkFundingRs = ScriptBuilder.createP2PKHOutputScript(arkService.activeKey);
+            List<TransactionOutput> fol = new ArrayList<>();
 
             // Let's fund the founding output
             {
                 Transaction arkFundingTx = new Transaction();
                 arkFundingTx.setVersion(2);
 
+                // This is the output that is used to FUND the rootNode (the fundingInput in the rootNode takes its capital from here
+                TransactionOutput arkFundingOutput;
+
 //                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkService.kit.wallet().freshReceiveAddress());
                 Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(arkService.activeKey);
                 arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkFundingLockScript);
+                fol.add(arkFundingOutput);
 
                 Script arkFundingLockScript2 = ScriptBuilder.createP2WPKHOutputScript(arkService.activeKey);
                 TransactionOutput arkFundingOutput2;
@@ -492,7 +492,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
 //            List<FoundingMember> fml = List.of(afm, bfm, cfm, dfm);
             List<FoundingMember> fml = aors.stream().map(arkOnboardingRequest -> new FoundingMember(Coin.valueOf(1, 0), arkOnboardingRequest.key)).toList();
-            List<TransactionOutput> fol = List.of(arkFundingOutput);
+
 
             ArkTree tree = new ArkTree();
             tree.arkService = arkService;
@@ -585,7 +585,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Create the witness
                 // TODO move this to the scriptfactory
                 int index = 0;
-                byte[] witnessBytes = arkService.createP2WPKHWitness(rootTx.serialize(), index, arkFundingOutput.getValue());
+                byte[] witnessBytes = arkService.createP2WPKHWitness(rootTx.serialize(), index, rootTx.getInput(index).getConnectedOutput().getValue());
                 Map<TransactionOutPoint, byte[]> witnessMap = Maps.newHashMap();
 
                 witnessMap.put(rootTx.getInput(index).getOutpoint(), witnessBytes);
