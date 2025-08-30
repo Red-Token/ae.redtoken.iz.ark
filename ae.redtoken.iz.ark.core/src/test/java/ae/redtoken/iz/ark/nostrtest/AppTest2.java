@@ -16,6 +16,7 @@ import org.bitcoinj.core.listeners.BlocksDownloadedEventListener;
 import org.bitcoinj.core.listeners.NewBestBlockListener;
 import org.bitcoinj.core.listeners.OnTransactionBroadcastListener;
 import org.bitcoinj.crypto.ECKey;
+import org.bitcoinj.kits.WalletAppKit;
 import org.bitcoinj.params.RegTestParams;
 import org.bitcoinj.script.*;
 import org.bitcoinj.store.MemoryBlockStore;
@@ -103,7 +104,7 @@ public class AppTest2 extends LTBCMainTestCase {
         }
     }
 
-    OnTheWire onTheWire;
+//    OnTheWire onTheWire;
 
     record ArkRoundInitiate(Coin minValue) {
     }
@@ -418,7 +419,7 @@ public class AppTest2 extends LTBCMainTestCase {
     public void test2() throws Exception {
         RegTestParams params = RegTestParams.get();
 
-        onTheWire = new OnTheWire(params);
+//        onTheWire = new OnTheWire(params);
 
         ArkService arkService = new ArkService(params);
         ArkUser alice = new ArkUser(params);
@@ -742,13 +743,13 @@ public class AppTest2 extends LTBCMainTestCase {
             send(vtx1_1_1, arkService, alice);
 
 
-            onTheWire.stickyCounter.forEach((sha256Hash, list) -> {
-                System.out.println(sha256Hash + ": " + list.size());
-//                Assertions.assertFalse(list.isEmpty());
-
-                list.forEach(zool -> System.out.println("P" + zool.peer + " " + zool.block.getHash()));
-
-            });
+//            onTheWire.stickyCounter.forEach((sha256Hash, list) -> {
+//                System.out.println(sha256Hash + ": " + list.size());
+////                Assertions.assertFalse(list.isEmpty());
+//
+//                list.forEach(zool -> System.out.println("P" + zool.peer + " " + zool.block.getHash()));
+//
+//            });
 
             System.out.println("HLLSLSSL");
             Assertions.assertEquals(266000000, alice.kit.wallet().getBalance().value);
@@ -884,7 +885,7 @@ public class AppTest2 extends LTBCMainTestCase {
 //        Thread.sleep(100);
         //TODO Why 16 blocks?
         ltbc.mine(16);
-        Thread.sleep(1000);
+//        Thread.sleep(1000);
     }
 
     public static void setWitness(TransactionInput ti, TransactionWitness witness) {
@@ -902,97 +903,52 @@ public class AppTest2 extends LTBCMainTestCase {
         tx.replaceInput(fti1.getIndex(), actor.signSpendingInput(fti1));
     }
 
-    @SneakyThrows
-    private void send(Transaction tx, Actor arkService, ArkUser alice) throws InterruptedException {
+    class MyNewBestBlockListener implements NewBestBlockListener {
 
-        onTheWire.stickyCounter.put(tx.getTxId(), new ArrayList<>());
+        final WalletAppKit kit;
+        final Sha256Hash txId;
+        final BlockingQueue<String> q = new ArrayBlockingQueue<>(1);
 
-        Thread.sleep(1000);
+        MyNewBestBlockListener(WalletAppKit kit, Sha256Hash txId) {
+            this.kit = kit;
+            this.txId = txId;
+        }
 
-        alice.kit.peerGroup().setBloomFilteringEnabled(false);
+        @SneakyThrows
+        @Override
+        public void notifyNewBestBlock(StoredBlock storedBlock) throws VerificationException {
+            System.out.println("New Block: " + storedBlock.getHeader().getHash());
+            System.out.println("Looking for: " + this.txId);
+            System.out.println("so high: " + storedBlock.getHeight());
 
-        BlockingQueue<String> q = new ArrayBlockingQueue<>(1);
+            Block block = kit.peerGroup().getConnectedPeers().stream()
+                    .findFirst().orElseThrow().getBlock(storedBlock.getHeader().getHash()).get();
 
-        System.out.println(alice.kit.chain().getBestChainHeight());
+            for (Transaction t : Objects.requireNonNull(block.getTransactions())) {
+                System.out.println("Transaction: " + t);
 
-        class MyNewBestBlockListener implements NewBestBlockListener {
-
-            @Override
-            public void notifyNewBestBlock(StoredBlock block) throws VerificationException {
-                System.out.println("New Block: " + block.getHeader().getHash());
-                System.out.println("Looking for: " + tx.getTxId());
-                System.out.println("so high: " + block.getHeight());
-
-                try {
-                    Block block1 = alice.kit.peerGroup().getConnectedPeers().stream().findFirst().orElseThrow().getBlock(block.getHeader().getHash()).get();
-
-                    for (Transaction t : Objects.requireNonNull(block1.getTransactions())) {
-                        System.out.println("Transaction: " + t);
-
-                        if (tx.getTxId().equals(t.getTxId())) {
-                            System.out.println("Found Transaction: " + t.getTxId());
-                            alice.kit.chain().removeNewBestBlockListener(this);
-                            System.out.println("Signing off");
-                            q.add("YES");
-                        }
-                    }
-                } catch (InterruptedException | ExecutionException e) {
-                    throw new RuntimeException(e);
+                if (txId.equals(t.getTxId())) {
+                    System.out.println("Found Transaction: " + t.getTxId());
+                    System.out.println("Signing off");
+                    kit.chain().removeNewBestBlockListener(this);
+                    q.add("YES");
                 }
             }
         }
+    }
 
-        alice.kit.chain().addNewBestBlockListener(new MyNewBestBlockListener());
-
-//////        BlocksDownloadedEventListener bdel = new BlockchainDownloadEventListener() {
-//////
-//////
-//////            @Override
-//////            public void onBlocksDownloaded(Peer peer, Block block, @Nullable FilteredBlock filteredBlock, int i) {
-//////                System.out.println("Looking for: " + tx.getTxId());
-//////                System.out.println("BlocksDownloaded: " + block.getHash());
-//////
-//////                Objects.requireNonNull(block.getTransactions()).stream().filter(trx -> tx.getTxId().equals(trx.getTxId())).toList().forEach(transaction -> {
-//////                    System.out.println("Found Transaction: " + transaction.getTxId());
-//////                    onTheWire.peerGroup.removeBlocksDownloadedEventListener(this);
-//////                    System.out.println("Signing off");
-//////                    q.add("YES");
-//////                });
-//////            }
-////
-////            @Override
-////            public void onChainDownloadStarted(Peer peer, int i) {
-////            }
-////        };
-//
-//        alice.kit.peerGroup().addBlocksDownloadedEventListener(bdel);
-
-        Thread.sleep(1000);
+    @SneakyThrows
+    private void send(Transaction tx, Actor arkService, ArkUser alice) throws InterruptedException {
+        MyNewBestBlockListener bbl = new MyNewBestBlockListener(alice.kit, tx.getTxId());
+        alice.kit.chain().addNewBestBlockListener(bbl);
 
         // Send it out
-        System.out.println(tx);
-        arkService.kit.peerGroup().broadcastTransaction(tx).broadcastAndAwaitRelay().get();
-
-        Thread.sleep(1000);
+//        arkService.kit.peerGroup().broadcastTransaction(tx).broadcastAndAwaitRelay().get();
+        arkService.kit.peerGroup().broadcastTransaction(tx).awaitSent().get();
 
         mineAndWait();
         // Check the balance
         System.out.println(alice.kit.wallet().getBalance());
-
-        System.out.println(q.take());
-
-//        Assertions.assertEquals(1, onTheWire.stickyCounter.get(tx.getTxId()));
-        System.out.println(onTheWire.stickyCounter.get(tx.getTxId()));
-
-
-//        onTheWire.peerGroup.removeOnTransactionBroadcastListener(listener);
-
-
-//        while (onTheWire.stickyCounter.get(tx.getTxId()) == 0) {
-//            Thread.sleep(1000);
-//            System.out.println("Wait");
-//            ltbc.mine(1);
-//        }
-
+        System.out.println(bbl.q.take());
     }
 }
