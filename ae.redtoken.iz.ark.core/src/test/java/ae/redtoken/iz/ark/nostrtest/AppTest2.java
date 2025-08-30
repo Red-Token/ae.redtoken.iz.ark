@@ -34,7 +34,10 @@ public class AppTest2 extends LTBCMainTestCase {
     record ArkRoundInitiate(Coin minValue) {
     }
 
-    record ArkOnboardingRequest(byte[] key, List<TransactionInput> inputs) {
+    record ArkOnboardingAsset(TransactionOutput output) {
+    }
+
+    record ArkOnboardingRequest(byte[] key, List<ArkOnboardingAsset> assets) {
     }
 
     record NewVTXTreeProposal(ArkTree tree) {
@@ -91,14 +94,19 @@ public class AppTest2 extends LTBCMainTestCase {
 
             tree.locks.put(Sha256Hash.of(rs), rs);
 
-//            createArkTreeNode(tree, foundingMembers, nodeOutput);
             return new Zel(tree, nodeOutput, rs);
         }
 
         record SubNode(List<FoundingMember> list, TransactionOutput output) {
         }
 
-        void createArkTree(ArkTree tree, List<FoundingMember> members, List<TransactionOutput> fundingOutputs) {
+        void createArkTree(ArkTree tree, List<ArkOnboardingRequest> requests) {
+            List<FoundingMember> members = requests.stream().map(arkOnboardingRequest ->
+                    new FoundingMember(
+                            arkOnboardingRequest.assets.stream().findFirst().orElseThrow().output.getValue(),
+                            arkOnboardingRequest.key)).toList();
+
+//            List<TransactionOutput> fundingOutputs
 
             Transaction rootTx = new Transaction();
             rootTx.setVersion(2);
@@ -113,9 +121,10 @@ public class AppTest2 extends LTBCMainTestCase {
             // Create the output and send in the hash of the script into that output.
             TransactionOutput rootTo = rootTx.addOutput(value, ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs.program())));
 
-            for (TransactionOutput output : fundingOutputs) {
-                TransactionInput rootTi = rootTx.addInput(output);
-                output.markAsSpent(rootTi);
+            for (ArkOnboardingRequest request : requests) {
+                ArkOnboardingAsset arkOnboardingAsset = request.assets.stream().findFirst().orElseThrow();
+                TransactionInput rootTi = rootTx.addInput(arkOnboardingAsset.output);
+                arkOnboardingAsset.output.markAsSpent(rootTi);
             }
 
             // Add a feeInput to transaction.
@@ -268,6 +277,24 @@ public class AppTest2 extends LTBCMainTestCase {
         final Map<String, byte[]> signatures = new HashMap<>();
     }
 
+    static class ArkInitiator extends ArkUser {
+        private final ArkService service;
+
+        //Hack
+        ArkOnboardingRequest aor;
+        List<ArkOnboardingAsset> assets;
+
+        public ArkInitiator(NetworkParameters params, ArkService service) {
+            super(params);
+            this.service = service;
+        }
+
+        void on(ArkRoundInitiate air) {
+            this.aor = new ArkOnboardingRequest(
+                    getActivePublicKey(), assets);
+        }
+    }
+
     static class ArkTree {
         public ArkService arkService;
 
@@ -347,10 +374,11 @@ public class AppTest2 extends LTBCMainTestCase {
 //        onTheWire = new OnTheWire(params);
 
         ArkService arkService = new ArkService(params);
-        ArkUser alice = new ArkUser(params);
-        ArkUser bob = new ArkUser(params);
-        ArkUser carol = new ArkUser(params);
-        ArkUser david = new ArkUser(params);
+        ArkInitiator alice = new ArkInitiator(params, arkService);
+        ArkInitiator bob = new ArkInitiator(params, arkService);
+        ArkInitiator carol = new ArkInitiator(params, arkService);
+        ArkInitiator david = new ArkInitiator(params, arkService);
+
         ArkUser eve = new ArkUser(params);
         ArkUser freddy = new ArkUser(params);
 
@@ -392,7 +420,6 @@ public class AppTest2 extends LTBCMainTestCase {
 
         // Here we have one ASF for all the users
         final ArkScriptFactory asf = new ArkScriptFactory(seqLockBlocks, timeLockBlocks, keyS.getPubKey());
-//        final Map<Sha256Hash, byte[]> programs = new HashMap<>();
 
         Arrays.stream(users).forEach(user -> user.asf = asf);
 
@@ -422,39 +449,26 @@ public class AppTest2 extends LTBCMainTestCase {
          */
 
         {
-            List<ArkUser> initiators = List.of(alice, bob, carol, david);
+            record Initiator(ArkInitiator user) {
+            }
 
-            ArkRoundInitiate aim = new ArkRoundInitiate(Coin.valueOf(0, 10));
-
-
-            ///  Create the root node
-            // Create the transaction
-//            Transaction ctx = new Transaction(params);
-
-            // S issues a ArkInitiation
-
-            // Users ask to join
-
-//            Transaction rootTx = new Transaction();
-//            rootTx.setVersion(2);
+            List<Initiator> initiators = new ArrayList<>();
 
             ArkRoundFactory arf = new ArkRoundFactory(params, asf, arkService);
 
-            List<TransactionOutput> fol = new ArrayList<>();
-
+//            List<TransactionOutput> fol = new ArrayList<>();
             // Let's fund the founding output
             {
                 Transaction arkFundingTx = new Transaction();
                 arkFundingTx.setVersion(2);
 
                 // This is the output that is used to FUND the rootNode (the fundingInput in the rootNode takes its capital from here
-                TransactionOutput arkFundingOutput;
 
 //                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkService.kit.wallet().freshReceiveAddress());
-                for (int i = 0; i < users.length; i++) {
-                    Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(users[i].activeKey);
-                    arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(1, 0), arkFundingLockScript);
-                    fol.add(arkFundingOutput);
+                for (ArkInitiator initiator : List.of(alice, bob, carol, david)) {
+                    Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(initiator.activeKey);
+                    initiator.assets = List.of(new ArkOnboardingAsset(arkFundingTx.addOutput(Coin.valueOf(1, 0), arkFundingLockScript)));
+                    initiators.add(new Initiator(initiator));
                 }
 
                 SendRequest sr = SendRequest.forTx(arkFundingTx);
@@ -472,31 +486,20 @@ public class AppTest2 extends LTBCMainTestCase {
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10));
 
             /// The users ask to onboard the ARK
-            Collection<ArkOnboardingRequest> aors = Lists.newArrayList();
+            List<ArkOnboardingRequest> aors = Lists.newArrayList();
 
-            for (Actor user : initiators) {
-                ArkOnboardingRequest aor = new ArkOnboardingRequest(user.getActivePublicKey(), new LinkedList<>());
-                aors.add(aor);
+            for (Initiator initiator : initiators) {
+
+                initiator.user.on(ari);
+                aors.add(initiator.user.aor);
             }
 
             /// Service create the tree
-
-
-            // Start creating the tree
-//            FoundingMember afm = new FoundingMember(Coin.valueOf(1, 0), alice.getActivePublicKey());
-//            FoundingMember bfm = new FoundingMember(Coin.valueOf(1, 0), bob.getActivePublicKey());
-//            FoundingMember cfm = new FoundingMember(Coin.valueOf(1, 0), carol.getActivePublicKey());
-//            FoundingMember dfm = new FoundingMember(Coin.valueOf(1, 0), david.getActivePublicKey());
-
-//            List<FoundingMember> fml = List.of(afm, bfm, cfm, dfm);
-            List<FoundingMember> fml = aors.stream().map(arkOnboardingRequest -> new FoundingMember(Coin.valueOf(1, 0), arkOnboardingRequest.key)).toList();
-
-
             ArkTree tree = new ArkTree();
             tree.arkService = arkService;
 
             // Now we make the next node.
-            arf.createArkTree(tree, fml, fol);
+            arf.createArkTree(tree, aors);
 
             /// Send it out for a review
             NewVTXTreeProposal proposal = new NewVTXTreeProposal(tree);
@@ -504,13 +507,14 @@ public class AppTest2 extends LTBCMainTestCase {
             Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
             Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
 
-            for (ArkUser user : users) {
+            for (Initiator initiator : initiators) {
+//                ArkTree tree = proposal.tree;
 
                 ///  Each user goes over the proposal
                 for (ArkTree.ArkLeaf leaf : tree.leafs) {
                     byte[] pubKey = asf.extractUserHashesFromVTXO(tree.getProgram(leaf.outPoint))[0];
 
-                    if (!Arrays.equals(pubKey, user.getActivePublicKey()))
+                    if (!Arrays.equals(pubKey, initiator.user.getActivePublicKey()))
                         continue;
 
                     List<ArkVirtualTransactionNode> list = new ArrayList<>();
@@ -537,11 +541,11 @@ public class AppTest2 extends LTBCMainTestCase {
                     byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
                     ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, list);
 
-                    Map<Sha256Hash, byte[]> signedStack = user.signStack(avts);
+                    Map<Sha256Hash, byte[]> signedStack = initiator.user.signStack(avts);
 
                     // The response
                     NewVTXTreeAccept accept = new NewVTXTreeAccept(signedStack);
-                    nvtaMap.put(ByteBuffer.wrap(user.getActivePublicKey()), accept);
+                    nvtaMap.put(ByteBuffer.wrap(initiator.user.getActivePublicKey()), accept);
                 }
             }
 
@@ -557,10 +561,6 @@ public class AppTest2 extends LTBCMainTestCase {
 
             /// Users go over the tree and add all the witnesses to the tree
 
-            for (ArkUser user : users) {
-            }
-
-
             Transaction vtx1 = rootTx.getOutput(0).getSpentBy().getParentTransaction();
             Transaction vtx1_1 = vtx1.getOutput(0).getSpentBy().getParentTransaction();
             Transaction vtx1_2 = vtx1.getOutput(1).getSpentBy().getParentTransaction();
@@ -574,15 +574,14 @@ public class AppTest2 extends LTBCMainTestCase {
             // Sign the input by everybody
             assignWitness(vtx1_2.getInput(0), tree, asf, nvtaMap, scr.arkServiceSignatures);
 
-
             /// The then sign
 
             // Now let's complete and fund this transaction
             // Todo: this part here needs to be rewritten to work with the signing strategy
-            for (int i = 0; i < rootTx.getInputs().size() -1; i++) {
+            for (int i = 0; i < rootTx.getInputs().size() - 1; i++) {
                 // Create the witness
                 // TODO move this to the scriptfactory
-                byte[] witnessBytes = users[i].createP2WPKHWitness(rootTx.serialize(), i, rootTx.getInput(i).getConnectedOutput().getValue());
+                byte[] witnessBytes = initiators.get(i).user.createP2WPKHWitness(rootTx.serialize(), i, rootTx.getInput(i).getConnectedOutput().getValue());
                 Map<TransactionOutPoint, byte[]> witnessMap = Maps.newHashMap();
 
                 witnessMap.put(rootTx.getInput(i).getOutpoint(), witnessBytes);
