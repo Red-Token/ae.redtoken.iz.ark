@@ -11,17 +11,23 @@ import org.bitcoin.tfw.ltbc.tc.LTBCMainTestCase;
 import org.bitcoinj.base.Coin;
 import org.bitcoinj.base.Sha256Hash;
 import org.bitcoinj.core.*;
+import org.bitcoinj.core.listeners.BlockchainDownloadEventListener;
+import org.bitcoinj.core.listeners.BlocksDownloadedEventListener;
+import org.bitcoinj.core.listeners.NewBestBlockListener;
+import org.bitcoinj.core.listeners.OnTransactionBroadcastListener;
 import org.bitcoinj.crypto.ECKey;
 import org.bitcoinj.params.RegTestParams;
 import org.bitcoinj.script.*;
+import org.bitcoinj.store.MemoryBlockStore;
 import org.bitcoinj.wallet.SendRequest;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.*;
 
 import static ae.redtoken.iz.ark.nostrtest.TestNostr.RELAYS;
 
@@ -30,6 +36,74 @@ import static ae.redtoken.iz.ark.nostrtest.TestNostr.RELAYS;
  *
  */
 public class AppTest2 extends LTBCMainTestCase {
+
+    class OnTheWire {
+
+        record Zool(Peer peer, Block block) {
+        }
+
+        Map<Sha256Hash, List<Zool>> stickyCounter = new ConcurrentHashMap<>();
+        BlockChain chain;
+        PeerGroup peerGroup;
+
+        @SneakyThrows
+        public OnTheWire(NetworkParameters params) {
+
+            // Store block headers in a file
+            MemoryBlockStore blockStore = new MemoryBlockStore(params.getGenesisBlock());
+
+            // Chain just holds headers, not full blocks
+
+            chain = new BlockChain(params.network(), blockStore);
+
+            // Create a PeerGroup
+
+            peerGroup = new PeerGroup(params, chain);
+            peerGroup.setBloomFilteringEnabled(false);  // receive all txs
+            peerGroup.addAddress(PeerAddress.localhost(params));
+
+            OnTransactionBroadcastListener listener = new OnTransactionBroadcastListener() {
+                @Override
+                public void onTransaction(Peer peer, Transaction transaction) {
+                    System.out.println("ZSeen: " + transaction.getTxId());
+                }
+            };
+
+            peerGroup.addOnTransactionBroadcastListener(listener);
+
+
+            // Optional: add a listener to observe new headers
+            peerGroup.addBlocksDownloadedEventListener((peer, block, filteredBlock, blocksLeft) -> {
+//                System.out.println("New header: " + block.getHashAsString());
+            });
+
+
+            // Start syncing headers
+            peerGroup.start();
+            peerGroup.waitForPeers(1);  // blocks until at least one peer is connected
+            peerGroup.startBlockChainDownload(new BlockchainDownloadEventListener() {
+                @Override
+                public void onBlocksDownloaded(Peer peer, Block block, @Nullable FilteredBlock filteredBlock, int i) {
+//                    System.out.println("New block: " + block.getHashAsString());
+
+                    for (Transaction transaction : block.getTransactions()) {
+                        if (stickyCounter.containsKey(transaction.getTxId())) {
+                            System.out.println("Found tx:" + transaction.getTxId());
+                            stickyCounter.get(transaction.getTxId()).add(new Zool(peer, block));
+//                            stickyCounter.computeIfPresent(transaction.getTxId(), (key, oldValue) -> oldValue + 1);
+                        }
+                    }
+                }
+
+                @Override
+                public void onChainDownloadStarted(Peer peer, int i) {
+                    System.out.println("Chain download started: " + i);
+                }
+            });
+        }
+    }
+
+    OnTheWire onTheWire;
 
     record ArkRoundInitiate(Coin minValue) {
     }
@@ -343,6 +417,8 @@ public class AppTest2 extends LTBCMainTestCase {
     @Test
     public void test2() throws Exception {
         RegTestParams params = RegTestParams.get();
+
+        onTheWire = new OnTheWire(params);
 
         ArkService arkService = new ArkService(params);
         ArkUser alice = new ArkUser(params);
@@ -665,6 +741,15 @@ public class AppTest2 extends LTBCMainTestCase {
             send(vtx1_1, arkService, alice);
             send(vtx1_1_1, arkService, alice);
 
+
+            onTheWire.stickyCounter.forEach((sha256Hash, list) -> {
+                System.out.println(sha256Hash + ": " + list.size());
+//                Assertions.assertFalse(list.isEmpty());
+
+                list.forEach(zool -> System.out.println("P" + zool.peer + " " + zool.block.getHash()));
+
+            });
+
             System.out.println("HLLSLSSL");
             Assertions.assertEquals(266000000, alice.kit.wallet().getBalance().value);
         }
@@ -796,10 +881,10 @@ public class AppTest2 extends LTBCMainTestCase {
 
     @SneakyThrows
     private void mineAndWait() {
-        Thread.sleep(100);
+//        Thread.sleep(100);
         //TODO Why 16 blocks?
         ltbc.mine(16);
-        Thread.sleep(100);
+        Thread.sleep(1000);
     }
 
     public static void setWitness(TransactionInput ti, TransactionWitness witness) {
@@ -817,14 +902,97 @@ public class AppTest2 extends LTBCMainTestCase {
         tx.replaceInput(fti1.getIndex(), actor.signSpendingInput(fti1));
     }
 
+    @SneakyThrows
     private void send(Transaction tx, Actor arkService, ArkUser alice) throws InterruptedException {
+
+        onTheWire.stickyCounter.put(tx.getTxId(), new ArrayList<>());
+
+        Thread.sleep(1000);
+
+        alice.kit.peerGroup().setBloomFilteringEnabled(false);
+
+        BlockingQueue<String> q = new ArrayBlockingQueue<>(1);
+
+        System.out.println(alice.kit.chain().getBestChainHeight());
+
+        class MyNewBestBlockListener implements NewBestBlockListener {
+
+            @Override
+            public void notifyNewBestBlock(StoredBlock block) throws VerificationException {
+                System.out.println("New Block: " + block.getHeader().getHash());
+                System.out.println("Looking for: " + tx.getTxId());
+                System.out.println("so high: " + block.getHeight());
+
+                try {
+                    Block block1 = alice.kit.peerGroup().getConnectedPeers().stream().findFirst().orElseThrow().getBlock(block.getHeader().getHash()).get();
+
+                    for (Transaction t : Objects.requireNonNull(block1.getTransactions())) {
+                        System.out.println("Transaction: " + t);
+
+                        if (tx.getTxId().equals(t.getTxId())) {
+                            System.out.println("Found Transaction: " + t.getTxId());
+                            alice.kit.chain().removeNewBestBlockListener(this);
+                            System.out.println("Signing off");
+                            q.add("YES");
+                        }
+                    }
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+
+        alice.kit.chain().addNewBestBlockListener(new MyNewBestBlockListener());
+
+//////        BlocksDownloadedEventListener bdel = new BlockchainDownloadEventListener() {
+//////
+//////
+//////            @Override
+//////            public void onBlocksDownloaded(Peer peer, Block block, @Nullable FilteredBlock filteredBlock, int i) {
+//////                System.out.println("Looking for: " + tx.getTxId());
+//////                System.out.println("BlocksDownloaded: " + block.getHash());
+//////
+//////                Objects.requireNonNull(block.getTransactions()).stream().filter(trx -> tx.getTxId().equals(trx.getTxId())).toList().forEach(transaction -> {
+//////                    System.out.println("Found Transaction: " + transaction.getTxId());
+//////                    onTheWire.peerGroup.removeBlocksDownloadedEventListener(this);
+//////                    System.out.println("Signing off");
+//////                    q.add("YES");
+//////                });
+//////            }
+////
+////            @Override
+////            public void onChainDownloadStarted(Peer peer, int i) {
+////            }
+////        };
+//
+//        alice.kit.peerGroup().addBlocksDownloadedEventListener(bdel);
+
+        Thread.sleep(1000);
 
         // Send it out
         System.out.println(tx);
-        arkService.kit.peerGroup().broadcastTransaction(tx);
+        arkService.kit.peerGroup().broadcastTransaction(tx).broadcastAndAwaitRelay().get();
+
+        Thread.sleep(1000);
 
         mineAndWait();
         // Check the balance
         System.out.println(alice.kit.wallet().getBalance());
+
+        System.out.println(q.take());
+
+//        Assertions.assertEquals(1, onTheWire.stickyCounter.get(tx.getTxId()));
+        System.out.println(onTheWire.stickyCounter.get(tx.getTxId()));
+
+
+//        onTheWire.peerGroup.removeOnTransactionBroadcastListener(listener);
+
+
+//        while (onTheWire.stickyCounter.get(tx.getTxId()) == 0) {
+//            Thread.sleep(1000);
+//            System.out.println("Wait");
+//            ltbc.mine(1);
+//        }
+
     }
 }

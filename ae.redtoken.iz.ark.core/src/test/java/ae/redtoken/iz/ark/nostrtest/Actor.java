@@ -36,8 +36,11 @@ public class Actor {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
         kit.connectToLocalHost();
         kit.startAsync().awaitRunning();
+        kit.peerGroup().setBloomFilteringEnabled(false); // receive all transactions
+
 
 //            kit.wallet().addCoinsReceivedEventListener((wallet, transaction, coin, coin1) -> {
 //                System.out.println("Received coin " + coin + " to " + wallet);
