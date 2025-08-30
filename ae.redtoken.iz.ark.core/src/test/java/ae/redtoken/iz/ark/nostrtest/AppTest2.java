@@ -40,7 +40,7 @@ public class AppTest2 extends LTBCMainTestCase {
     record ArkOnboardingRequest(byte[] key, List<ArkOnboardingAsset> assets) {
     }
 
-    record NewVTXTreeProposal(ArkTree tree) {
+    record ArkRoundVTXTreeProposal(ArkTree tree) {
     }
 
     record NewVTXTreeAccept(Map<Sha256Hash, byte[]> signedStack) {
@@ -284,6 +284,11 @@ public class AppTest2 extends LTBCMainTestCase {
         ArkOnboardingRequest aor;
         List<ArkOnboardingAsset> assets;
 
+        //Hack2
+        Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
+        Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
+
+
         public ArkInitiator(NetworkParameters params, ArkService service) {
             super(params);
             this.service = service;
@@ -292,6 +297,48 @@ public class AppTest2 extends LTBCMainTestCase {
         void on(ArkRoundInitiate air) {
             this.aor = new ArkOnboardingRequest(
                     getActivePublicKey(), assets);
+        }
+
+        void on(ArkRoundVTXTreeProposal proposal) {
+            ArkTree tree = proposal.tree;
+
+            ///  Each user goes over the proposal
+            for (ArkTree.ArkLeaf leaf : tree.leafs) {
+                byte[] pubKey = asf.extractUserHashesFromVTXO(tree.getProgram(leaf.outPoint))[0];
+
+                if (!Arrays.equals(pubKey, getActivePublicKey()))
+                    continue;
+
+                List<ArkVirtualTransactionNode> list = new ArrayList<>();
+
+                Transaction transaction;
+                for (TransactionOutPoint outPoint = leaf.outPoint;
+                     !tree.roots.contains(outPoint.hash());
+                     outPoint = transaction.getInput(0).getOutpoint()) {
+
+                    //The branch transaction
+                    transaction = tree.nodes.get(outPoint.hash());
+                    TransactionOutPoint branchOutPoint = transaction.getInput(0).getOutpoint();
+                    TransactionOutput output = tree.nodes.get(branchOutPoint.hash()).getOutput(branchOutPoint.index());
+
+                    byte[] lock = tree.locks.get(
+                            Sha256Hash.wrap(Objects.requireNonNull(
+                                    Script.parse(output.getScriptBytes()).chunks().get(1).data)));
+
+                    ArkVirtualTransactionNode avtn = new ArkVirtualTransactionNode(transaction.serialize(), lock);
+                    list.addFirst(avtn);
+                    avntMap.put(transaction.getTxId(), avtn);
+                }
+
+                byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
+                ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, list);
+
+                Map<Sha256Hash, byte[]> signedStack = signStack(avts);
+
+                // The response
+                NewVTXTreeAccept accept = new NewVTXTreeAccept(signedStack);
+                nvtaMap.put(ByteBuffer.wrap(getActivePublicKey()), accept);
+            }
         }
     }
 
@@ -485,12 +532,14 @@ public class AppTest2 extends LTBCMainTestCase {
             /// START
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10));
 
+            for (Initiator initiator : initiators) {
+                initiator.user.on(ari);
+            }
+
             /// The users ask to onboard the ARK
             List<ArkOnboardingRequest> aors = Lists.newArrayList();
 
             for (Initiator initiator : initiators) {
-
-                initiator.user.on(ari);
                 aors.add(initiator.user.aor);
             }
 
@@ -502,51 +551,54 @@ public class AppTest2 extends LTBCMainTestCase {
             arf.createArkTree(tree, aors);
 
             /// Send it out for a review
-            NewVTXTreeProposal proposal = new NewVTXTreeProposal(tree);
+            ArkRoundVTXTreeProposal proposal = new ArkRoundVTXTreeProposal(tree);
 
             Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
             Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
 
             for (Initiator initiator : initiators) {
-//                ArkTree tree = proposal.tree;
-
-                ///  Each user goes over the proposal
-                for (ArkTree.ArkLeaf leaf : tree.leafs) {
-                    byte[] pubKey = asf.extractUserHashesFromVTXO(tree.getProgram(leaf.outPoint))[0];
-
-                    if (!Arrays.equals(pubKey, initiator.user.getActivePublicKey()))
-                        continue;
-
-                    List<ArkVirtualTransactionNode> list = new ArrayList<>();
-
-                    Transaction transaction;
-                    for (TransactionOutPoint outPoint = leaf.outPoint;
-                         !tree.roots.contains(outPoint.hash());
-                         outPoint = transaction.getInput(0).getOutpoint()) {
-
-                        //The branch transaction
-                        transaction = tree.nodes.get(outPoint.hash());
-                        TransactionOutPoint branchOutPoint = transaction.getInput(0).getOutpoint();
-                        TransactionOutput output = tree.nodes.get(branchOutPoint.hash()).getOutput(branchOutPoint.index());
-
-                        byte[] lock = tree.locks.get(
-                                Sha256Hash.wrap(Objects.requireNonNull(
-                                        Script.parse(output.getScriptBytes()).chunks().get(1).data)));
-
-                        ArkVirtualTransactionNode avtn = new ArkVirtualTransactionNode(transaction.serialize(), lock);
-                        list.addFirst(avtn);
-                        avntMap.put(transaction.getTxId(), avtn);
-                    }
-
-                    byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
-                    ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, list);
-
-                    Map<Sha256Hash, byte[]> signedStack = initiator.user.signStack(avts);
-
-                    // The response
-                    NewVTXTreeAccept accept = new NewVTXTreeAccept(signedStack);
-                    nvtaMap.put(ByteBuffer.wrap(initiator.user.getActivePublicKey()), accept);
-                }
+                initiator.user.avntMap = avntMap;
+                initiator.user.nvtaMap = nvtaMap;
+                initiator.user.on(proposal);
+////                ArkTree tree = proposal.tree;
+//
+//                ///  Each user goes over the proposal
+//                for (ArkTree.ArkLeaf leaf : tree.leafs) {
+//                    byte[] pubKey = asf.extractUserHashesFromVTXO(tree.getProgram(leaf.outPoint))[0];
+//
+//                    if (!Arrays.equals(pubKey, initiator.user.getActivePublicKey()))
+//                        continue;
+//
+//                    List<ArkVirtualTransactionNode> list = new ArrayList<>();
+//
+//                    Transaction transaction;
+//                    for (TransactionOutPoint outPoint = leaf.outPoint;
+//                         !tree.roots.contains(outPoint.hash());
+//                         outPoint = transaction.getInput(0).getOutpoint()) {
+//
+//                        //The branch transaction
+//                        transaction = tree.nodes.get(outPoint.hash());
+//                        TransactionOutPoint branchOutPoint = transaction.getInput(0).getOutpoint();
+//                        TransactionOutput output = tree.nodes.get(branchOutPoint.hash()).getOutput(branchOutPoint.index());
+//
+//                        byte[] lock = tree.locks.get(
+//                                Sha256Hash.wrap(Objects.requireNonNull(
+//                                        Script.parse(output.getScriptBytes()).chunks().get(1).data)));
+//
+//                        ArkVirtualTransactionNode avtn = new ArkVirtualTransactionNode(transaction.serialize(), lock);
+//                        list.addFirst(avtn);
+//                        avntMap.put(transaction.getTxId(), avtn);
+//                    }
+//
+//                    byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
+//                    ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, list);
+//
+//                    Map<Sha256Hash, byte[]> signedStack = initiator.user.signStack(avts);
+//
+//                    // The response
+//                    NewVTXTreeAccept accept = new NewVTXTreeAccept(signedStack);
+//                    nvtaMap.put(ByteBuffer.wrap(initiator.user.getActivePublicKey()), accept);
+//                }
             }
 
             Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
