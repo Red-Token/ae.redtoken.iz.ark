@@ -553,52 +553,13 @@ public class AppTest2 extends LTBCMainTestCase {
             /// Send it out for a review
             ArkRoundVTXTreeProposal proposal = new ArkRoundVTXTreeProposal(tree);
 
-            Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
             Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
+            Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
 
             for (Initiator initiator : initiators) {
                 initiator.user.avntMap = avntMap;
                 initiator.user.nvtaMap = nvtaMap;
                 initiator.user.on(proposal);
-////                ArkTree tree = proposal.tree;
-//
-//                ///  Each user goes over the proposal
-//                for (ArkTree.ArkLeaf leaf : tree.leafs) {
-//                    byte[] pubKey = asf.extractUserHashesFromVTXO(tree.getProgram(leaf.outPoint))[0];
-//
-//                    if (!Arrays.equals(pubKey, initiator.user.getActivePublicKey()))
-//                        continue;
-//
-//                    List<ArkVirtualTransactionNode> list = new ArrayList<>();
-//
-//                    Transaction transaction;
-//                    for (TransactionOutPoint outPoint = leaf.outPoint;
-//                         !tree.roots.contains(outPoint.hash());
-//                         outPoint = transaction.getInput(0).getOutpoint()) {
-//
-//                        //The branch transaction
-//                        transaction = tree.nodes.get(outPoint.hash());
-//                        TransactionOutPoint branchOutPoint = transaction.getInput(0).getOutpoint();
-//                        TransactionOutput output = tree.nodes.get(branchOutPoint.hash()).getOutput(branchOutPoint.index());
-//
-//                        byte[] lock = tree.locks.get(
-//                                Sha256Hash.wrap(Objects.requireNonNull(
-//                                        Script.parse(output.getScriptBytes()).chunks().get(1).data)));
-//
-//                        ArkVirtualTransactionNode avtn = new ArkVirtualTransactionNode(transaction.serialize(), lock);
-//                        list.addFirst(avtn);
-//                        avntMap.put(transaction.getTxId(), avtn);
-//                    }
-//
-//                    byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
-//                    ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, list);
-//
-//                    Map<Sha256Hash, byte[]> signedStack = initiator.user.signStack(avts);
-//
-//                    // The response
-//                    NewVTXTreeAccept accept = new NewVTXTreeAccept(signedStack);
-//                    nvtaMap.put(ByteBuffer.wrap(initiator.user.getActivePublicKey()), accept);
-//                }
             }
 
             Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
@@ -710,15 +671,6 @@ public class AppTest2 extends LTBCMainTestCase {
             sendAndVerify(vtx1, arkService, alice);
             sendAndVerify(vtx1_1, arkService, alice);
             sendAndVerify(vtx1_1_1, arkService, alice);
-
-
-//            onTheWire.stickyCounter.forEach((sha256Hash, list) -> {
-//                System.out.println(sha256Hash + ": " + list.size());
-////                Assertions.assertFalse(list.isEmpty());
-//
-//                list.forEach(zool -> System.out.println("P" + zool.peer + " " + zool.block.getHash()));
-//
-//            });
 
             System.out.println("HLLSLSSL");
             Assertions.assertEquals(266000000, alice.kit.wallet().getBalance().value);
