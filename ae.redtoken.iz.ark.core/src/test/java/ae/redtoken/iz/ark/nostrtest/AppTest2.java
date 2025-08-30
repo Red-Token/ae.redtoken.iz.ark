@@ -443,7 +443,7 @@ public class AppTest2 extends LTBCMainTestCase {
             // This is the output that is used to FUND the rootNode (the fundingInput in the rootNode takes its capital from here
             TransactionOutput arkFundingOutput;
 
-            Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(arkService.activeKey);
+
 //            Script arkFundingRs = ScriptBuilder.createP2PKHOutputScript(arkService.activeKey);
 
             // Let's fund the founding output
@@ -452,24 +452,25 @@ public class AppTest2 extends LTBCMainTestCase {
                 arkFundingTx.setVersion(2);
 
 //                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkService.kit.wallet().freshReceiveAddress());
+                Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(arkService.activeKey);
                 arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkFundingLockScript);
+
+                Script arkFundingLockScript2 = ScriptBuilder.createP2WPKHOutputScript(arkService.activeKey);
+                TransactionOutput arkFundingOutput2;
+                arkFundingOutput2 = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkFundingLockScript2);
 
                 SendRequest sr = SendRequest.forTx(arkFundingTx);
                 sr.feePerKb = Coin.valueOf(1000);
                 arkService.kit.wallet().completeTx(sr);
 
                 // Send it out
-                arkService.kit.peerGroup().broadcastTransaction(sr.tx);
-
-                // Mine
-                mineAndWait();
+                sendAndVerify(sr.tx, arkService, alice);
             }
 
             // Now we have money in our fundingOutput
 
 
             /// START
-
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10));
 
             /// The users ask to onboard the ARK
@@ -559,7 +560,6 @@ public class AppTest2 extends LTBCMainTestCase {
             /// Users go over the tree and add all the witnesses to the tree
 
             for (ArkUser user : users) {
-
             }
 
 
