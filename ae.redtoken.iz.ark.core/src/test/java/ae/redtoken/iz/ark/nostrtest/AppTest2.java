@@ -356,7 +356,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
         ArkUser[] users = Arrays.asList(alice, bob, carol, david, eve, freddy).toArray(new ArkUser[0]);
 
-        final double coinsToSendToArkService = 10;
+        final double coinsToSendToArkService = 20;
         final double coinsToSendToUsers = 2;
 
         Assertions.assertEquals(Coin.ZERO, arkService.kit.wallet().getBalance());
@@ -451,13 +451,11 @@ public class AppTest2 extends LTBCMainTestCase {
                 TransactionOutput arkFundingOutput;
 
 //                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkService.kit.wallet().freshReceiveAddress());
-                Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(arkService.activeKey);
-                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkFundingLockScript);
-                fol.add(arkFundingOutput);
-
-                Script arkFundingLockScript2 = ScriptBuilder.createP2WPKHOutputScript(arkService.activeKey);
-                TransactionOutput arkFundingOutput2;
-                arkFundingOutput2 = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkFundingLockScript2);
+                for (int i = 0; i < users.length; i++) {
+                    Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(users[i].activeKey);
+                    arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(1, 0), arkFundingLockScript);
+                    fol.add(arkFundingOutput);
+                }
 
                 SendRequest sr = SendRequest.forTx(arkFundingTx);
                 sr.feePerKb = Coin.valueOf(1000);
@@ -581,28 +579,23 @@ public class AppTest2 extends LTBCMainTestCase {
 
             // Now let's complete and fund this transaction
             // Todo: this part here needs to be rewritten to work with the signing strategy
-            {
+            for (int i = 0; i < rootTx.getInputs().size() -1; i++) {
                 // Create the witness
                 // TODO move this to the scriptfactory
-                int index = 0;
-                byte[] witnessBytes = arkService.createP2WPKHWitness(rootTx.serialize(), index, rootTx.getInput(index).getConnectedOutput().getValue());
+                byte[] witnessBytes = users[i].createP2WPKHWitness(rootTx.serialize(), i, rootTx.getInput(i).getConnectedOutput().getValue());
                 Map<TransactionOutPoint, byte[]> witnessMap = Maps.newHashMap();
 
-                witnessMap.put(rootTx.getInput(index).getOutpoint(), witnessBytes);
+                witnessMap.put(rootTx.getInput(i).getOutpoint(), witnessBytes);
 
                 /// The response
                 StartAccept sa = new StartAccept(witnessMap);
 
                 // TODO SUPER HACK!
-                setWitness(rootTx.getInput(index), TransactionWitness.read(ByteBuffer.wrap(sa.witnessMap.get(rootTx.getInput(index).getOutpoint()))));
+                setWitness(rootTx.getInput(i), TransactionWitness.read(ByteBuffer.wrap(sa.witnessMap.get(rootTx.getInput(i).getOutpoint()))));
             }
 
             /// Send it out
-            arkService.kit.peerGroup().broadcastTransaction(rootTx);
-
-            // Mine
-            mineAndWait();
-
+            sendAndVerify(rootTx, arkService, alice);
 
             ///  The ARK Round is deposit
 
