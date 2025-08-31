@@ -111,27 +111,19 @@ public class Actor {
         return signHash(sigHash.getBytes());
     }
 
+    /**
+     *  returns a map with the Sha256 of program mapped to the signature
+     * @param vtxs
+     * @return
+     */
     public Map<Sha256Hash, byte[]> signStack(AppTest2.ArkVirtualTransactionStack vtxs) {
 
         Map<Sha256Hash, Transaction> transactionMap = new HashMap<>();
-//        Transaction root = new Transaction(params, vtxs.root);
         Transaction root = Transaction.read(ByteBuffer.wrap(vtxs.root));
         transactionMap.put(root.getTxId(), root);
         Map<Sha256Hash, byte[]> sigMap = new HashMap<>();
 
-//        // Connect the input
-//        TransactionInput ti1 = vtx1.addInput(findOutputWitness(ctx, rs1));
-//
-//        // Sign it
-//        {
-//            byte[] tx = vtx1.bitcoinSerialize();
-//            byte[] program = rs1;
-//
-//            byte[] sigABin = alice.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-//            byte[] sigBBin = bob.signInputWitness(params, tx, program, ti1.getIndex(), Objects.requireNonNull(ti1.getConnectedOutput()).getValue());
-
         for (AppTest2.ArkVirtualTransactionNode node : vtxs.nodes) {
-//            Transaction t = new Transaction(params, node.transaction);
             Transaction t = Transaction.read(ByteBuffer.wrap(node.transaction));
             Transaction put1 = transactionMap.put(t.getTxId(), t);
             Assertions.assertNull(put1);
@@ -141,7 +133,7 @@ public class Actor {
             Transaction t = Transaction.read(ByteBuffer.wrap(node.transaction));
             List<TransactionInput> list = t.getInputs().stream().filter(ti -> transactionMap.containsKey(ti.getOutpoint().hash())).toList();
 
-            if(list.isEmpty()) {
+            if (list.isEmpty()) {
                 System.out.println("WTF!");
             }
 
@@ -149,13 +141,9 @@ public class Actor {
                 TransactionOutput to = AppTest2.findOutputWitness(transactionMap.get(ti.getOutpoint().hash()), node.program);
                 byte[] put = sigMap.put(Sha256Hash.of(node.program), signInputWitness(node.transaction, node.program, ti.getIndex(), to.getValue()));
                 Assertions.assertNull(put);
-                System.out.println("DOING:" + to);
             }
 
             System.out.println(t);
-//
-//
-//            byte[] sigABin = signInputWitness(params, node.transaction, node.program, node.index, Coin.valueOf(node.value));
         }
 
         Assertions.assertEquals(vtxs.nodes.size(), sigMap.size());

@@ -124,6 +124,8 @@ public class AppTest2 extends LTBCMainTestCase {
             for (ArkOnboardingRequest request : requests) {
                 ArkOnboardingAsset arkOnboardingAsset = request.assets.stream().findFirst().orElseThrow();
                 TransactionInput rootTi = rootTx.addInput(arkOnboardingAsset.output);
+
+                // TODO here we mark the output as spent
                 arkOnboardingAsset.output.markAsSpent(rootTi);
             }
 
@@ -143,7 +145,10 @@ public class AppTest2 extends LTBCMainTestCase {
             branchTx.setVersion(2);
 
             TransactionInput branchTi = branchTx.addInput(output);
-            output.markAsSpent(branchTi);
+
+            tree.spendPath.put(output.getOutPointFor(), branchTi);
+
+//            output.markAsSpent(branchTi);
 
             Collection<SubNode> subNodes = new ArrayList<>();
             Collection<TransactionOutput> leafs = new ArrayList<>();
@@ -363,6 +368,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
     static class ArkTree {
         public ArkService arkService;
+        public Map<TransactionOutPoint, TransactionInput> spendPath = new HashMap<>();
 
         static class NodeMap extends HashMap<Sha256Hash, Transaction> {
             Transaction put(Transaction transaction) {
@@ -389,13 +395,21 @@ public class AppTest2 extends LTBCMainTestCase {
     }
 
     //    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
-    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, NewVTXTreeAccept> acceptMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
+    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, NewVTXTreeAccept> acceptMap, StartConfirmationRequest scr) {
+
+        // first we select the output
         Script outputScript = Script.parse(Objects.requireNonNull(ti.getConnectedOutput()).getScriptBytes());
+
+        // from here we get the program hash
         Sha256Hash programHash = Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(outputScript));
 
+        // get the program from the locks
         byte[] program = tree.locks.get(programHash);
+
+        // decode the program to get the pubkeys needed
         byte[][] userKeys = asf.extractUserHashesFromVTXO(program);
 
+        // create the list of user signatures
         List<byte[]> userSignatures = Lists.newArrayList();
 
         for (byte[] userKey : userKeys) {
@@ -404,11 +418,13 @@ public class AppTest2 extends LTBCMainTestCase {
 
         byte[][] userSigs = userSignatures.toArray(new byte[userSignatures.size()][]);
 
+        // create the witness
         TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
                 userSigs,
-                arkServiceSignatures.get(programHash),
+                scr.arkServiceSignatures.get(programHash),
                 program);
 
+        // assign it to the input
         setWitness(ti, witness);
     }
 
@@ -582,33 +598,32 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
+            Transaction vtx1 = tree.spendPath.get(rootTx.getOutput(0).getOutPointFor()).getParentTransaction();
+            Transaction vtx1_1 = tree.spendPath.get(vtx1.getOutput(0).getOutPointFor()).getParentTransaction();
+
 
             // Service provides branch
             ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), avntMap.values());
 
             // S signs the tree
-            Map<Sha256Hash, byte[]> arkServiceSignatures = arkService.signStack(vtxs_full);
+            // This is a map of the hash of the program (stored in the output) and the signature
+            StartConfirmationRequest scr = new StartConfirmationRequest(rootTx.serialize(), arkService.signStack(vtxs_full));
 
-            StartConfirmationRequest scr = new StartConfirmationRequest(rootTx.serialize(), arkServiceSignatures);
+            for (Transaction node : tree.nodes.values()) {
+                // Filter out the root node
+                if (tree.roots.contains(node.getTxId()))
+                    continue;
 
-            /// Users go over the tree and add all the witnesses to the tree
-
-            Transaction vtx1 = rootTx.getOutput(0).getSpentBy().getParentTransaction();
-            Transaction vtx1_1 = vtx1.getOutput(0).getSpentBy().getParentTransaction();
-            Transaction vtx1_2 = vtx1.getOutput(1).getSpentBy().getParentTransaction();
-
-            // Add the signatures to the root node
-            assignWitness(vtx1.getInput(0), tree, asf, nvtaMap, scr.arkServiceSignatures);
-
-            // Sign the input by everybody
-            assignWitness(vtx1_1.getInput(0), tree, asf, nvtaMap, scr.arkServiceSignatures);
-
-            // Sign the input by everybody
-            assignWitness(vtx1_2.getInput(0), tree, asf, nvtaMap, scr.arkServiceSignatures);
+                for (int i = 0; i < node.getInputs().size() - 1; i++) {
+                    TransactionInput input = node.getInput(i);
+                    assignWitness(input, tree, asf, nvtaMap, scr);
+                }
+            }
 
             /// Sign the root
             // Now let's complete and fund this transaction
             // Todo: this part here needs to be rewritten to work with the signing strategy
+
 
             for (Initiator initiator : initiators) {
                 // Create the witness
@@ -622,6 +637,8 @@ public class AppTest2 extends LTBCMainTestCase {
                 }
             }
 
+
+
             /// Send it out
             sendAndVerify(rootTx, arkService, alice);
 
@@ -632,12 +649,15 @@ public class AppTest2 extends LTBCMainTestCase {
             carol.setNewTree(tree);
             david.setNewTree(tree);
 
+
+
             for (ArkUser user : List.of(alice, bob, carol, david)) {
                 Assertions.assertEquals(1, user.unspentVTXOs.size());
             }
 
             // Collaborative exit
             // Agreed exit for A
+            // this is a hashmap of the txid and the corresponding transaction
             Transaction vtx1_1_1 = new Transaction();
             vtx1_1_1.setVersion(2);
 
@@ -822,7 +842,12 @@ public class AppTest2 extends LTBCMainTestCase {
     }
 
     public static void setWitness(TransactionInput ti, TransactionWitness witness) {
-        Objects.requireNonNull(ti.getParentTransaction()).replaceInput(ti.getIndex(), ti.withWitness(witness));
+//        TransactionOutput output = ti.getConnectedOutput();
+        TransactionInput input = ti.withWitness(witness);
+        Objects.requireNonNull(ti.getParentTransaction()).replaceInput(ti.getIndex(), input);
+//        TransactionOutput newOutput = output.duplicateDetached();
+//        output.getParentTransaction().replaceOutput(output.getIndex(), newOutput);
+//        newOutput.markAsSpent(input);
     }
 
 
