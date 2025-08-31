@@ -146,7 +146,6 @@ public class AppTest2 extends LTBCMainTestCase {
 
             TransactionInput branchTi = branchTx.addInput(output);
 
-            tree.spendPath.put(output.getOutPointFor(), branchTi);
 
 //            output.markAsSpent(branchTi);
 
@@ -184,6 +183,8 @@ public class AppTest2 extends LTBCMainTestCase {
 
             addFee(branchTx, arkService);
             tree.nodes.put(branchTx);
+            tree.spendPath.put(output.getOutPointFor(), new ArkTree.TransactionInPoint(branchTx.getTxId(), branchTi.getIndex()));
+
 
             // Now that the transaction is finished we add the leafs
             leafs.forEach(leaf ->
@@ -367,8 +368,11 @@ public class AppTest2 extends LTBCMainTestCase {
     }
 
     static class ArkTree {
+        record TransactionInPoint(Sha256Hash txId, long index) {
+        }
+
         public ArkService arkService;
-        public Map<TransactionOutPoint, TransactionInput> spendPath = new HashMap<>();
+        public Map<TransactionOutPoint, TransactionInPoint> spendPath = new HashMap<>();
 
         static class NodeMap extends HashMap<Sha256Hash, Transaction> {
             Transaction put(Transaction transaction) {
@@ -538,15 +542,12 @@ public class AppTest2 extends LTBCMainTestCase {
 
             ArkRoundFactory arf = new ArkRoundFactory(params, asf, arkService);
 
-//            List<TransactionOutput> fol = new ArrayList<>();
             // Let's fund the founding output
             {
                 Transaction arkFundingTx = new Transaction();
                 arkFundingTx.setVersion(2);
 
                 // This is the output that is used to FUND the rootNode (the fundingInput in the rootNode takes its capital from here
-
-//                arkFundingOutput = arkFundingTx.addOutput(Coin.valueOf(4, 0), arkService.kit.wallet().freshReceiveAddress());
                 for (ArkInitiator initiator : List.of(alice, bob, carol, david)) {
                     Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(initiator.activeKey);
                     initiator.assets = List.of(new ArkOnboardingAsset(arkFundingTx.addOutput(Coin.valueOf(1, 0), arkFundingLockScript)));
@@ -560,9 +561,6 @@ public class AppTest2 extends LTBCMainTestCase {
                 // Send it out
                 sendAndVerify(sr.tx, arkService, alice);
             }
-
-            // Now we have money in our fundingOutput
-
 
             /// START
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10));
@@ -598,9 +596,6 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
-            Transaction vtx1 = tree.spendPath.get(rootTx.getOutput(0).getOutPointFor()).getParentTransaction();
-            Transaction vtx1_1 = tree.spendPath.get(vtx1.getOutput(0).getOutPointFor()).getParentTransaction();
-
 
             // Service provides branch
             ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), avntMap.values());
@@ -638,7 +633,6 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
 
-
             /// Send it out
             sendAndVerify(rootTx, arkService, alice);
 
@@ -648,7 +642,6 @@ public class AppTest2 extends LTBCMainTestCase {
             bob.setNewTree(tree);
             carol.setNewTree(tree);
             david.setNewTree(tree);
-
 
 
             for (ArkUser user : List.of(alice, bob, carol, david)) {
@@ -704,6 +697,10 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             // Let's make an on-chain charity output
+            ArkTree.TransactionInPoint transactionInPoint = tree.spendPath.get(rootTx.getOutput(0).getOutPointFor());
+            Transaction vtx1 = tree.nodes.get(transactionInPoint.txId);
+            Transaction vtx1_1 = tree.nodes.get(tree.spendPath.get(vtx1.getOutput(0).getOutPointFor()).txId);
+
             sendAndVerify(vtx1, arkService, alice);
             sendAndVerify(vtx1_1, arkService, alice);
             sendAndVerify(vtx1_1_1, arkService, alice);
