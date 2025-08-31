@@ -607,16 +607,12 @@ public class AppTest2 extends LTBCMainTestCase {
             assignWitness(vtx1_2.getInput(0), tree, asf, nvtaMap, scr.arkServiceSignatures);
 
             /// Sign the root
-
-            Map<TransactionOutPoint, byte[]> witnessMap = new HashMap<>();
-
             // Now let's complete and fund this transaction
             // Todo: this part here needs to be rewritten to work with the signing strategy
 
-
             for (Initiator initiator : initiators) {
                 // Create the witness
-                // TODO move this to the scriptfactory
+                // TODO move this to the script factory
                 initiator.user.on(scr);
 
                 // Go over the response and update the witness
