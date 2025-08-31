@@ -46,7 +46,7 @@ public class AppTest2 extends LTBCMainTestCase {
     record NewVTXTreeAccept(Map<Sha256Hash, byte[]> signedStack) {
     }
 
-    record StartConfirmationRequest(Map<Sha256Hash, byte[]> arkServiceSignatures) {
+    record StartConfirmationRequest(byte[] rootTx, Map<Sha256Hash, byte[]> arkServiceSignatures) {
     }
 
     record StartAccept(Map<TransactionOutPoint, byte[]> witnessMap) {
@@ -285,7 +285,8 @@ public class AppTest2 extends LTBCMainTestCase {
         List<ArkOnboardingAsset> assets;
 
         //Hack2
-        Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
+//        Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
+        NewVTXTreeAccept accept;
         Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
 
 
@@ -336,9 +337,27 @@ public class AppTest2 extends LTBCMainTestCase {
                 Map<Sha256Hash, byte[]> signedStack = signStack(avts);
 
                 // The response
-                NewVTXTreeAccept accept = new NewVTXTreeAccept(signedStack);
-                nvtaMap.put(ByteBuffer.wrap(getActivePublicKey()), accept);
+
+                accept = new NewVTXTreeAccept(signedStack);
+//                nvtaMap.put(ByteBuffer.wrap(getActivePublicKey()), accept);
             }
+        }
+
+        StartAccept sa;
+
+        public void on(StartConfirmationRequest scr) {
+            Transaction rootTx = Transaction.read(ByteBuffer.wrap(scr.rootTx));
+            Map<TransactionOutPoint, byte[]> witnessMap = Maps.newHashMap();
+
+            //TODO: bit of a hack I guess we could also keept track of this
+            for (ArkOnboardingAsset asset : assets) {
+                TransactionOutPoint outPoint = asset.output.getOutPointFor();
+                TransactionInput input = rootTx.getInputs().stream().filter(transactionInput -> transactionInput.getOutpoint().equals(outPoint)).findFirst().orElseThrow();
+                byte[] witnessBytes = createP2WPKHWitness(scr.rootTx, input.getIndex(), asset.output().getValue());
+                witnessMap.put(input.getOutpoint(), witnessBytes);
+            }
+
+            sa = new StartAccept(witnessMap);
         }
     }
 
@@ -558,8 +577,8 @@ public class AppTest2 extends LTBCMainTestCase {
 
             for (Initiator initiator : initiators) {
                 initiator.user.avntMap = avntMap;
-                initiator.user.nvtaMap = nvtaMap;
                 initiator.user.on(proposal);
+                nvtaMap.put(ByteBuffer.wrap(initiator.user.getActivePublicKey()), initiator.user().accept);
             }
 
             Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
@@ -570,7 +589,7 @@ public class AppTest2 extends LTBCMainTestCase {
             // S signs the tree
             Map<Sha256Hash, byte[]> arkServiceSignatures = arkService.signStack(vtxs_full);
 
-            StartConfirmationRequest scr = new StartConfirmationRequest(arkServiceSignatures);
+            StartConfirmationRequest scr = new StartConfirmationRequest(rootTx.serialize(), arkServiceSignatures);
 
             /// Users go over the tree and add all the witnesses to the tree
 
@@ -587,23 +606,24 @@ public class AppTest2 extends LTBCMainTestCase {
             // Sign the input by everybody
             assignWitness(vtx1_2.getInput(0), tree, asf, nvtaMap, scr.arkServiceSignatures);
 
-            /// The then sign
+            /// Sign the root
+
+            Map<TransactionOutPoint, byte[]> witnessMap = new HashMap<>();
 
             // Now let's complete and fund this transaction
             // Todo: this part here needs to be rewritten to work with the signing strategy
-            for (int i = 0; i < rootTx.getInputs().size() - 1; i++) {
+
+
+            for (Initiator initiator : initiators) {
                 // Create the witness
                 // TODO move this to the scriptfactory
-                byte[] witnessBytes = initiators.get(i).user.createP2WPKHWitness(rootTx.serialize(), i, rootTx.getInput(i).getConnectedOutput().getValue());
-                Map<TransactionOutPoint, byte[]> witnessMap = Maps.newHashMap();
+                initiator.user.on(scr);
 
-                witnessMap.put(rootTx.getInput(i).getOutpoint(), witnessBytes);
-
-                /// The response
-                StartAccept sa = new StartAccept(witnessMap);
-
-                // TODO SUPER HACK!
-                setWitness(rootTx.getInput(i), TransactionWitness.read(ByteBuffer.wrap(sa.witnessMap.get(rootTx.getInput(i).getOutpoint()))));
+                // Go over the response and update the witness
+                for (TransactionOutPoint top : initiator.user.sa.witnessMap.keySet()) {
+                    TransactionInput ti = rootTx.getInputs().stream().filter(input -> input.getOutpoint().equals(top)).findFirst().orElseThrow();
+                    setWitness(ti, TransactionWitness.read(ByteBuffer.wrap(initiator.user.sa.witnessMap.get(top))));
+                }
             }
 
             /// Send it out
