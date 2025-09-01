@@ -571,8 +571,6 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             /// Service create the tree
-//            ArkTree tree = new ArkTree();
-//            tree.arkService = arkService;
             arkService.tree = new ArkTree();
             arkService.tree.arkService = arkService;
 
@@ -581,15 +579,15 @@ public class AppTest2 extends LTBCMainTestCase {
             /// START
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10));
 
-            for (Initiator initiator : initiators) {
-                initiator.user.on(ari);
+            for (ArkInitiator initiator : initiators.stream().map(initiator -> initiator.user).toList()) {
+                initiator.on(ari);
             }
 
             /// The users ask to onboard the ARK
             List<ArkOnboardingRequest> aors = Lists.newArrayList();
 
-            for (Initiator initiator : initiators) {
-                aors.add(initiator.user.aor);
+            for (ArkInitiator initiator : initiators.stream().map(initiator -> initiator.user).toList()) {
+                aors.add(initiator.aor);
             }
 
             /// Send it out for a review
