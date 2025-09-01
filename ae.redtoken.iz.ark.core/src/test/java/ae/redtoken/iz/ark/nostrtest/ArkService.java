@@ -8,6 +8,8 @@ import org.bitcoinj.core.NetworkParameters;
 import org.bitcoinj.core.Transaction;
 import org.bitcoinj.wallet.SendRequest;
 
+import java.util.Collection;
+
 public class ArkService extends Actor {
 
     public ArkService(NetworkParameters params) {
@@ -37,4 +39,14 @@ public class ArkService extends Actor {
         // Send it out
         kit.peerGroup().broadcastTransaction(sr.tx);
     }
+
+//    public Collection<AppTest2.ArkVirtualTransactionNode> prepareSignatures(AppTest2.ArkTree tree) {
+//
+//        return tree.nodes.values().stream()
+//                .filter(transaction -> !tree.roots.contains(transaction.getTxId()))
+//                .map(transaction -> new AppTest2.ArkVirtualTransactionNode(
+//                        transaction.serialize(),
+//                        tree.getLock(transaction)))
+//                .toList();
+//    }
 }

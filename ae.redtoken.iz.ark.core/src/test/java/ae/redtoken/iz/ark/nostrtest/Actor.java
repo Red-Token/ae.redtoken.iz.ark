@@ -138,8 +138,8 @@ public class Actor {
             }
 
             for (TransactionInput ti : list) {
-                TransactionOutput to = AppTest2.findOutputWitness(transactionMap.get(ti.getOutpoint().hash()), node.program);
-                byte[] put = sigMap.put(Sha256Hash.of(node.program), signInputWitness(node.transaction, node.program, ti.getIndex(), to.getValue()));
+                TransactionOutput to = AppTest2.findOutputWitness(transactionMap.get(ti.getOutpoint().hash()), node.lock);
+                byte[] put = sigMap.put(Sha256Hash.of(node.lock), signInputWitness(node.transaction, node.lock, ti.getIndex(), to.getValue()));
                 Assertions.assertNull(put);
             }
 

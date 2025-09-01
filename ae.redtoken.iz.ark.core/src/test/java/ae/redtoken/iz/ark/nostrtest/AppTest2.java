@@ -255,11 +255,11 @@ public class AppTest2 extends LTBCMainTestCase {
 
     public static class ArkVirtualTransactionNode {
         final byte[] transaction;
-        final byte[] program;
+        final byte[] lock;
 
-        public ArkVirtualTransactionNode(byte[] transaction, byte[] program) {
+        public ArkVirtualTransactionNode(byte[] transaction, byte[] lock) {
             this.transaction = transaction;
-            this.program = program;
+            this.lock = lock;
         }
     }
 
@@ -293,7 +293,6 @@ public class AppTest2 extends LTBCMainTestCase {
         //Hack2
 //        Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
         NewVTXTreeAccept accept;
-        Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
 
 
         public ArkInitiator(NetworkParameters params, ArkService service) {
@@ -306,47 +305,33 @@ public class AppTest2 extends LTBCMainTestCase {
                     getActivePublicKey(), assets);
         }
 
+        // This map contains transaction and the lock in binary form based on the txid.
         void on(ArkRoundVTXTreeProposal proposal) {
             ArkTree tree = proposal.tree;
 
             ///  Each user goes over the proposal
-            for (ArkTree.ArkLeaf leaf : tree.leafs) {
-                byte[] pubKey = asf.extractUserHashesFromVTXO(tree.getProgram(leaf.outPoint))[0];
+            // TODO: THIS IS VERY BAD and WOULD FAIL IF THERE IS MORE THAN ONE LEAF
+            Map<Sha256Hash, ArkVirtualTransactionNode> signatureRequestMap = new HashMap<>();
 
-                if (!Arrays.equals(pubKey, getActivePublicKey()))
-                    continue;
+            for (ArkTree.ArkLeaf leaf : tree.leafs.stream().filter(
+                    leaf -> Arrays.equals(getActivePublicKey(),
+                            asf.extractUserHashesFromVTXO(tree.getLock(leaf.outPoint))[0])).toList()) {
+                for (Transaction transaction = tree.nodes.get(leaf.outPoint.hash());
+                     !(tree.roots.contains(transaction.getTxId()) || signatureRequestMap.containsKey(transaction.getTxId()));
+                     transaction = tree.nodes.get(transaction.getInput(0).getOutpoint().hash())) {
 
-                List<ArkVirtualTransactionNode> list = new ArrayList<>();
-
-                Transaction transaction;
-                for (TransactionOutPoint outPoint = leaf.outPoint;
-                     !tree.roots.contains(outPoint.hash());
-                     outPoint = transaction.getInput(0).getOutpoint()) {
-
-                    //The branch transaction
-                    transaction = tree.nodes.get(outPoint.hash());
-                    TransactionOutPoint branchOutPoint = transaction.getInput(0).getOutpoint();
-                    TransactionOutput output = tree.nodes.get(branchOutPoint.hash()).getOutput(branchOutPoint.index());
-
-                    byte[] lock = tree.locks.get(
-                            Sha256Hash.wrap(Objects.requireNonNull(
-                                    Script.parse(output.getScriptBytes()).chunks().get(1).data)));
-
-                    ArkVirtualTransactionNode avtn = new ArkVirtualTransactionNode(transaction.serialize(), lock);
-                    list.addFirst(avtn);
-                    avntMap.put(transaction.getTxId(), avtn);
+                    ArkVirtualTransactionNode avtn = new ArkVirtualTransactionNode(transaction.serialize(), tree.getLock(transaction));
+                    signatureRequestMap.put(transaction.getTxId(), avtn);
                 }
-
-                byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
-                ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, list);
-
-                Map<Sha256Hash, byte[]> signedStack = signStack(avts);
-
-                // The response
-
-                accept = new NewVTXTreeAccept(signedStack);
-//                nvtaMap.put(ByteBuffer.wrap(getActivePublicKey()), accept);
             }
+
+            byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
+            ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, signatureRequestMap.values());
+
+            Map<Sha256Hash, byte[]> signedStack = signStack(avts);
+
+            // The response
+            accept = new NewVTXTreeAccept(signedStack);
         }
 
         StartAccept sa;
@@ -367,8 +352,8 @@ public class AppTest2 extends LTBCMainTestCase {
         }
     }
 
-    static class ArkTree {
-        record TransactionInPoint(Sha256Hash txId, long index) {
+    public static class ArkTree {
+        public record TransactionInPoint(Sha256Hash txId, long index) {
         }
 
         public ArkService arkService;
@@ -385,6 +370,9 @@ public class AppTest2 extends LTBCMainTestCase {
 
         Collection<Sha256Hash> roots;
         NodeMap nodes = new NodeMap();
+
+        //Locks is a hashmap where you lookup the lock program based on the output that it locks
+        //So if you have an output, the locks contains the program for the input, to be signed to unlock the lock
         Map<Sha256Hash, byte[]> locks = new HashMap<>();
         Collection<ArkLeaf> leafs = new ArrayList<>();
 
@@ -392,9 +380,27 @@ public class AppTest2 extends LTBCMainTestCase {
             return nodes.get(top.hash()).getOutput(top.index());
         }
 
-        byte[] getProgram(TransactionOutPoint top) {
-            byte[] hash = ScriptPattern.extractHashFromP2SH(Script.parse(getOutput(top).getScriptBytes()));
-            return locks.get(Sha256Hash.wrap(hash));
+        /**
+         * Gets the lock that unlocks the Output behind this OutPoint
+         *
+         * @param top Outpoint to be unlocked
+         * @return
+         */
+        byte[] getLock(TransactionOutPoint top) {
+            return locks.get(Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(Script.parse(getOutput(top).getScriptBytes()))));
+        }
+
+        byte[] getLock(Transaction transaction) {
+            return getLock(transaction.getInput(0).getOutpoint());
+        }
+
+        Collection<AppTest2.ArkVirtualTransactionNode> getSignaturesForSToSign() {
+            return nodes.values().stream()
+                    .filter(transaction -> !roots.contains(transaction.getTxId()))
+                    .map(transaction -> new AppTest2.ArkVirtualTransactionNode(
+                            transaction.serialize(),
+                            getLock(transaction)))
+                    .toList();
         }
     }
 
@@ -562,6 +568,10 @@ public class AppTest2 extends LTBCMainTestCase {
                 sendAndVerify(sr.tx, arkService, alice);
             }
 
+            /// Service create the tree
+            ArkTree tree = new ArkTree();
+            tree.arkService = arkService;
+
             /// START
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10));
 
@@ -576,21 +586,18 @@ public class AppTest2 extends LTBCMainTestCase {
                 aors.add(initiator.user.aor);
             }
 
-            /// Service create the tree
-            ArkTree tree = new ArkTree();
-            tree.arkService = arkService;
-
             // Now we make the next node.
             arf.createArkTree(tree, aors);
 
             /// Send it out for a review
             ArkRoundVTXTreeProposal proposal = new ArkRoundVTXTreeProposal(tree);
 
-            Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
+//            Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
+
+            //The response
             Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
 
             for (Initiator initiator : initiators) {
-                initiator.user.avntMap = avntMap;
                 initiator.user.on(proposal);
                 nvtaMap.put(ByteBuffer.wrap(initiator.user.getActivePublicKey()), initiator.user().accept);
             }
@@ -598,7 +605,7 @@ public class AppTest2 extends LTBCMainTestCase {
             Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
 
             // Service provides branch
-            ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), avntMap.values());
+            ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), tree.getSignaturesForSToSign());
 
             // S signs the tree
             // This is a map of the hash of the program (stored in the output) and the signature
