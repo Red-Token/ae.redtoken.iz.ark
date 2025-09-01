@@ -839,12 +839,8 @@ public class AppTest2 extends LTBCMainTestCase {
     }
 
     public static void setWitness(TransactionInput ti, TransactionWitness witness) {
-//        TransactionOutput output = ti.getConnectedOutput();
         TransactionInput input = ti.withWitness(witness);
         Objects.requireNonNull(ti.getParentTransaction()).replaceInput(ti.getIndex(), input);
-//        TransactionOutput newOutput = output.duplicateDetached();
-//        output.getParentTransaction().replaceOutput(output.getIndex(), newOutput);
-//        newOutput.markAsSpent(input);
     }
 
 
