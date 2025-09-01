@@ -80,27 +80,28 @@ public class AppTest2 extends LTBCMainTestCase {
             }
         }
 
-        Zel createArkTreeRoot(List<FoundingMember> foundingMembers, Collection<TransactionOutput> foundingOutputs) {
+//        Zel createArkTreeRoot(List<FoundingMember> foundingMembers, Collection<TransactionOutput> foundingOutputs) {
+//
+//            ArkTree tree = new ArkTree();
+//
+//            // rec create the tree
+//            Transaction tx = new Transaction();
 
-            ArkTree tree = new ArkTree();
-
-            // rec create the tree
-            Transaction tx = new Transaction();
-//            Transaction tx = new Transaction(params);
-            tx.setVersion(2);
-
-            foundingOutputs.forEach(tx::addInput);
-
-            byte[] rs = asf.createVTXONodeScript(foundingMembers.stream().map(m -> m.key).toArray(byte[][]::new)).getProgram();
-
-            // Create the output and send in the hash of the script into that output.
-            TransactionOutput nodeOutput = tx.addOutput(Coin.valueOf(foundingMembers.stream().mapToLong(m -> m.value.value).sum()), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs)));
-            addFee(tx, arkService);
-
-            tree.locks.put(Sha256Hash.of(rs), rs);
-
-            return new Zel(tree, nodeOutput, rs);
-        }
+        /// /            Transaction tx = new Transaction(params);
+//            tx.setVersion(2);
+//
+//            foundingOutputs.forEach(tx::addInput);
+//
+//            byte[] rs = asf.createVTXONodeScript(foundingMembers.stream().map(m -> m.key).toArray(byte[][]::new)).getProgram();
+//
+//            // Create the output and send in the hash of the script into that output.
+//            TransactionOutput nodeOutput = tx.addOutput(Coin.valueOf(foundingMembers.stream().mapToLong(m -> m.value.value).sum()), ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(rs)));
+//            addFee(tx, arkService);
+//
+//            tree.locks.put(Sha256Hash.of(rs), rs);
+//
+//            return new Zel(tree, nodeOutput, rs);
+//        }
 
         record SubNode(List<FoundingMember> list, TransactionOutput output) {
         }
@@ -150,7 +151,6 @@ public class AppTest2 extends LTBCMainTestCase {
             branchTx.setVersion(2);
 
             TransactionInput branchTi = branchTx.addInput(output);
-
 
 //            output.markAsSpent(branchTi);
 
@@ -406,6 +406,18 @@ public class AppTest2 extends LTBCMainTestCase {
                             getLock(transaction)))
                     .toList();
         }
+
+        Collection<Transaction> getSpendPath(TransactionOutput leaf) {
+            List<Transaction> tl = new ArrayList<>();
+
+            for (Transaction t = nodes.get(leaf.getOutPointFor().hash());
+                 !roots.contains(t.getTxId());
+                 t = nodes.get(t.getInput(0).getOutpoint().hash())) {
+                tl.addFirst(t);
+            }
+
+            return tl;
+        }
     }
 
     //    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
@@ -556,6 +568,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 arkFundingTx.setVersion(2);
 
                 // This is the output that is used to FUND the rootNode (the fundingInput in the rootNode takes its capital from here
+//                for (ArkInitiator initiator : List.of(alice, bob, carol, david)) {
                 for (ArkInitiator initiator : List.of(alice, bob, carol, david)) {
                     Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(initiator.activeKey);
                     initiator.assets = List.of(new ArkOnboardingAsset(arkFundingTx.addOutput(Coin.valueOf(1, 0), arkFundingLockScript)));
@@ -584,14 +597,20 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             /// The users ask to onboard the ARK
-            List<ArkOnboardingRequest> aors = Lists.newArrayList();
+//            List<ArkOnboardingRequest> aors = Lists.newArrayList();
+            Map<ByteBuffer, ArkOnboardingRequest> aorMap = Maps.newHashMap();
 
             for (ArkInitiator initiator : initiators) {
-                aors.add(initiator.aor);
+//                aors.add(initiator.aor);
+                aorMap.put(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.aor);
             }
 
+            List<ArkOnboardingRequest> list = initiators.stream().map(arkInitiator -> aorMap.get(ByteBuffer.wrap(arkInitiator.getActivePublicKey()))).toList();
+            List<ArkOnboardingRequest> list2 = aorMap.values().stream().toList();
+
+
             /// Send it out for a review
-            ArkRoundVTXTreeProposal proposal = rw.createProposal(aors);
+            ArkRoundVTXTreeProposal proposal = rw.createProposal(list2);
 
             //The response
             for (ArkInitiator initiator : initiators) {
@@ -673,14 +692,26 @@ public class AppTest2 extends LTBCMainTestCase {
                 setWitness(ti_1_1_1, asf.createVTXOLeafColaborativeUnlockWitness(sigABin, signatures.get(ti_1_1_1.getIndex()), rs1_1_1));
             }
 
-            // Let's make an on-chain charity output
-            ArkTree.TransactionInPoint transactionInPoint = tree.spendPath.get(rootTx.getOutput(0).getOutPointFor());
-            Transaction vtx1 = tree.nodes.get(transactionInPoint.txId);
-            Transaction vtx1_1 = tree.nodes.get(tree.spendPath.get(vtx1.getOutput(0).getOutPointFor()).txId);
 
-            sendAndVerify(vtx1, arkService, alice);
-            sendAndVerify(vtx1_1, arkService, alice);
-            sendAndVerify(vtx1_1_1, arkService, alice);
+            List<Transaction> tl = new ArrayList<>();
+
+            tl.addFirst(vtx1_1_1);
+
+
+            TransactionOutput leaf = alice.unspentVTXOs.stream().findFirst().orElseThrow();
+
+//            Collection<Transaction> spendPath = alice.tree.getSpendPath(leaf);
+//            spendPath.add(vtx1_1_1);
+
+            for (Transaction t = alice.tree.nodes.get(leaf.getOutPointFor().hash());
+                 !alice.tree.roots.contains(t.getTxId());
+                 t = alice.tree.nodes.get(t.getInput(0).getOutpoint().hash())) {
+                tl.addFirst(t);
+            }
+
+            for (Transaction t : tl) {
+                sendAndVerify(t, arkService, alice);
+            }
 
             System.out.println("HLLSLSSL");
             Assertions.assertEquals(266000000, alice.kit.wallet().getBalance().value);
