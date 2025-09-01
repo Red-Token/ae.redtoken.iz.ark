@@ -546,7 +546,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
         {
 
-            List<Initiator> initiators = new ArrayList<>();
+            List<ArkInitiator> initiators = new ArrayList<>();
 
             ArkRoundFactory arf = new ArkRoundFactory(params, asf, arkService);
 
@@ -559,7 +559,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 for (ArkInitiator initiator : List.of(alice, bob, carol, david)) {
                     Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(initiator.activeKey);
                     initiator.assets = List.of(new ArkOnboardingAsset(arkFundingTx.addOutput(Coin.valueOf(1, 0), arkFundingLockScript)));
-                    initiators.add(new Initiator(initiator));
+                    initiators.add(initiator);
                 }
 
                 SendRequest sr = SendRequest.forTx(arkFundingTx);
@@ -579,14 +579,14 @@ public class AppTest2 extends LTBCMainTestCase {
             /// START
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10));
 
-            for (ArkInitiator initiator : initiators.stream().map(initiator -> initiator.user).toList()) {
+            for (ArkInitiator initiator : initiators) {
                 initiator.on(ari);
             }
 
             /// The users ask to onboard the ARK
             List<ArkOnboardingRequest> aors = Lists.newArrayList();
 
-            for (ArkInitiator initiator : initiators.stream().map(initiator -> initiator.user).toList()) {
+            for (ArkInitiator initiator : initiators) {
                 aors.add(initiator.aor);
             }
 
@@ -594,7 +594,7 @@ public class AppTest2 extends LTBCMainTestCase {
             ArkRoundVTXTreeProposal proposal = rw.createProposal(aors);
 
             //The response
-            for (ArkInitiator initiator : initiators.stream().map(initiator -> initiator.user).toList()) {
+            for (ArkInitiator initiator : initiators) {
                 initiator.on(proposal);
                 rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.accept);
             }
@@ -603,7 +603,7 @@ public class AppTest2 extends LTBCMainTestCase {
             StartConfirmationRequest scr = rw.createStartConfirmationRequest();
 
             /// Sign the root
-            for (ArkInitiator initiator : initiators.stream().map(initiator -> initiator.user).toList()) {
+            for (ArkInitiator initiator : initiators) {
                 initiator.on(scr);
                 rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.sa);
             }
@@ -621,7 +621,7 @@ public class AppTest2 extends LTBCMainTestCase {
             carol.setNewTree(tree);
             david.setNewTree(tree);
 
-            for (ArkUser user : List.of(alice, bob, carol, david)) {
+            for (ArkUser user : initiators) {
                 Assertions.assertEquals(1, user.unspentVTXOs.size());
             }
 
