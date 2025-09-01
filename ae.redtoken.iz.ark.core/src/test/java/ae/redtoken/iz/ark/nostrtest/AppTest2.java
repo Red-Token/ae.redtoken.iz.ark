@@ -31,6 +31,11 @@ import static ae.redtoken.iz.ark.nostrtest.TestNostr.RELAYS;
  *
  */
 public class AppTest2 extends LTBCMainTestCase {
+
+    record Initiator(ArkInitiator user) {
+    }
+
+
     record ArkRoundInitiate(Coin minValue) {
     }
 
@@ -40,16 +45,16 @@ public class AppTest2 extends LTBCMainTestCase {
     record ArkOnboardingRequest(byte[] key, List<ArkOnboardingAsset> assets) {
     }
 
-    record ArkRoundVTXTreeProposal(ArkTree tree) {
+    public record ArkRoundVTXTreeProposal(ArkTree tree) {
     }
 
-    record NewVTXTreeAccept(Map<Sha256Hash, byte[]> signedStack) {
+    public record NewVTXTreeAccept(Map<Sha256Hash, byte[]> signedStack) {
     }
 
-    record StartConfirmationRequest(byte[] rootTx, Map<Sha256Hash, byte[]> arkServiceSignatures) {
+    public record StartConfirmationRequest(byte[] rootTx, Map<Sha256Hash, byte[]> arkServiceSignatures) {
     }
 
-    record StartAccept(Map<TransactionOutPoint, byte[]> witnessMap) {
+    public record StartAccept(Map<TransactionOutPoint, byte[]> witnessMap) {
     }
 
     public static class ArkRoundFactory {
@@ -405,7 +410,7 @@ public class AppTest2 extends LTBCMainTestCase {
     }
 
     //    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
-    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, NewVTXTreeAccept> acceptMap, StartConfirmationRequest scr) {
+    public static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, NewVTXTreeAccept> acceptMap, StartConfirmationRequest scr) {
 
         // first we select the output
         Script outputScript = Script.parse(Objects.requireNonNull(ti.getConnectedOutput()).getScriptBytes());
@@ -541,8 +546,6 @@ public class AppTest2 extends LTBCMainTestCase {
          */
 
         {
-            record Initiator(ArkInitiator user) {
-            }
 
             List<Initiator> initiators = new ArrayList<>();
 
@@ -569,8 +572,12 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             /// Service create the tree
-            ArkTree tree = new ArkTree();
-            tree.arkService = arkService;
+//            ArkTree tree = new ArkTree();
+//            tree.arkService = arkService;
+            arkService.tree = new ArkTree();
+            arkService.tree.arkService = arkService;
+
+            ArkService.StatefulRoundWizard rw = arkService.new StatefulRoundWizard(arf);
 
             /// START
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10));
@@ -586,13 +593,8 @@ public class AppTest2 extends LTBCMainTestCase {
                 aors.add(initiator.user.aor);
             }
 
-            // Now we make the next node.
-            arf.createArkTree(tree, aors);
-
             /// Send it out for a review
-            ArkRoundVTXTreeProposal proposal = new ArkRoundVTXTreeProposal(tree);
-
-//            Map<Sha256Hash, ArkVirtualTransactionNode> avntMap = Maps.newHashMap();
+            ArkRoundVTXTreeProposal proposal = rw.createProposal(aors);
 
             //The response
             Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
@@ -602,54 +604,49 @@ public class AppTest2 extends LTBCMainTestCase {
                 nvtaMap.put(ByteBuffer.wrap(initiator.user.getActivePublicKey()), initiator.user().accept);
             }
 
-            Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
+            StartConfirmationRequest scr = rw.createStartConfirmationRequest();
 
-            // Service provides branch
-            ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), tree.getSignaturesForSToSign());
+//            // Yes things are going peachy we have the response
+//            Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
+//
+//            // Service provides branch
+//            ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), tree.getSignaturesForSToSign());
+//
+//            // Service signs the S part of the tree and sends out for start signatures
+//            StartConfirmationRequest scr = new StartConfirmationRequest(rootTx.serialize(), arkService.signStack(vtxs_full));
 
-            // S signs the tree
-            // This is a map of the hash of the program (stored in the output) and the signature
-            StartConfirmationRequest scr = new StartConfirmationRequest(rootTx.serialize(), arkService.signStack(vtxs_full));
+            rw.assignWitnessToTree(nvtaMap, scr);
 
-            for (Transaction node : tree.nodes.values()) {
-                // Filter out the root node
-                if (tree.roots.contains(node.getTxId()))
-                    continue;
-
-                for (int i = 0; i < node.getInputs().size() - 1; i++) {
-                    TransactionInput input = node.getInput(i);
-                    assignWitness(input, tree, asf, nvtaMap, scr);
-                }
-            }
+//            // The tree is updated based on the SCR and nvtaMap
+//            for (Transaction node : tree.nodes.values()) {
+//                // Filter out the root node
+//                if (tree.roots.contains(node.getTxId()))
+//                    continue;
+//
+//                for (int i = 0; i < node.getInputs().size() - 1; i++) {
+//                    TransactionInput input = node.getInput(i);
+//                    assignWitness(input, tree, asf, nvtaMap, scr);
+//                }
+//            }
 
             /// Sign the root
-            // Now let's complete and fund this transaction
-            // Todo: this part here needs to be rewritten to work with the signing strategy
-
-
-            for (Initiator initiator : initiators) {
-                // Create the witness
-                // TODO move this to the script factory
-                initiator.user.on(scr);
-
-                // Go over the response and update the witness
-                for (TransactionOutPoint top : initiator.user.sa.witnessMap.keySet()) {
-                    TransactionInput ti = rootTx.getInputs().stream().filter(input -> input.getOutpoint().equals(top)).findFirst().orElseThrow();
-                    setWitness(ti, TransactionWitness.read(ByteBuffer.wrap(initiator.user.sa.witnessMap.get(top))));
-                }
+            for (ArkInitiator initiator : initiators.stream().map(initiator -> initiator.user).toList()) {
+                initiator.on(scr);
+                rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.sa);
             }
 
+            Transaction rootTx = rw.createRootTx();
 
-            /// Send it out
+            /// Send it out the rootTx
             sendAndVerify(rootTx, arkService, alice);
 
             ///  The ARK Round is deposit
+            ArkTree tree = arkService.tree;
 
             alice.setNewTree(tree);
             bob.setNewTree(tree);
             carol.setNewTree(tree);
             david.setNewTree(tree);
-
 
             for (ArkUser user : List.of(alice, bob, carol, david)) {
                 Assertions.assertEquals(1, user.unspentVTXOs.size());

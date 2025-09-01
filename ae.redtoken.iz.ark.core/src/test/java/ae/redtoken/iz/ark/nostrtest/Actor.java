@@ -27,6 +27,8 @@ public class Actor {
     Identity identity;
     ECKey activeKey;
 
+    AppTest2.ArkTree tree;
+
     Actor(NetworkParameters params) {
 //            RegTestParams params = RegTestParams.get();
 
