@@ -25,13 +25,20 @@ public class ArkTree {
         this.locks = new HashMap<>(proposal.locks());
         this.nodes = new NodeMap();
 
-        proposal.nodes().forEach((sha256Hash, bytes) -> {
-            nodes.put(Transaction.read(ByteBuffer.wrap(bytes)));
-        });
+        proposal.nodes().forEach(bytes -> nodes.put(Transaction.read(ByteBuffer.wrap(bytes))));
     }
 
-    static class NodeMap extends HashMap<Sha256Hash, Transaction> {
-        Transaction put(Transaction transaction) {
+    public static class NodeMap extends HashMap<Sha256Hash, Transaction> {
+
+        public NodeMap() {
+        }
+
+        public NodeMap(Collection<Transaction> nodes) {
+            super();
+            nodes.forEach(this::put);
+        }
+
+        public Transaction put(Transaction transaction) {
             return put(transaction.getTxId(), transaction);
         }
     }

@@ -488,6 +488,15 @@ public class AppTest2 extends LTBCMainTestCase {
 
         Arrays.stream(users).forEach(user -> user.asf = asf);
 
+        ObjectMapper om =  new ObjectMapper();
+
+        SimpleModule module = new SimpleModule();
+        module.addKeySerializer(Sha256Hash.class, new Sha256HashKeySerializer());
+        module.addKeyDeserializer(Sha256Hash.class, new Sha256HashKeyDeserializer());
+        module.addDeserializer(Sha256Hash.class, new Sha256HashDeserializer());
+        module.addSerializer(Sha256Hash.class, new Sha256HashSerializer());
+        om.registerModule(module);
+
         // Start the ARK
         /**
          *  ARK RoundInitiate
@@ -546,14 +555,6 @@ public class AppTest2 extends LTBCMainTestCase {
 
             ArkService.StatefulRoundWizard rw = arkService.new StatefulRoundWizard(arf);
 
-            ObjectMapper om =  new ObjectMapper();
-
-            SimpleModule module = new SimpleModule();
-            module.addKeySerializer(Sha256Hash.class, new Sha256HashKeySerializer());
-            module.addKeyDeserializer(Sha256Hash.class, new Sha256HashKeyDeserializer());
-            module.addDeserializer(Sha256Hash.class, new Sha256HashDeserializer());
-            module.addSerializer(Sha256Hash.class, new Sha256HashSerializer());
-            om.registerModule(module);
 
             /// START
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10).getValue());
@@ -567,7 +568,6 @@ public class AppTest2 extends LTBCMainTestCase {
 
             /// Send it out for a review
             ArkRoundVTXTreeProposal proposal = rw.createProposal();
-
 
             //The response
             for (ArkInitiator initiator : initiators) {
@@ -682,7 +682,7 @@ public class AppTest2 extends LTBCMainTestCase {
          *  Step 1: Eve creates a quotation
          */
 
-        ObjectMapper om = new ObjectMapper();
+        ObjectMapper om2 = new ObjectMapper();
         TestNostr.ArkQuotationContent aqc = new TestNostr.ArkQuotationContent();
 
         aqc.amount = 30000;
@@ -695,7 +695,7 @@ public class AppTest2 extends LTBCMainTestCase {
         };
         aqc.offer.vat = "5%";
 
-        String offer = om.writeValueAsString(aqc);
+        String offer = om2.writeValueAsString(aqc);
         System.out.println(offer);
 
         TestNostr.NIP0666<TestNostr.NIP0666ArkQuotationEvent> nip0666Stack = new TestNostr.NIP0666<>();

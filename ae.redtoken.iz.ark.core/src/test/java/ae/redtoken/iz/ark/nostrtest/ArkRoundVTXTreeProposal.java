@@ -10,14 +10,15 @@ import java.util.stream.Collectors;
 
 public record ArkRoundVTXTreeProposal(
         Collection<Sha256Hash> roots,
-        Map<Sha256Hash, byte[]> nodes,
+        Collection<ArkLeaf> leafs,
         Map<Sha256Hash, byte[]> locks,
-        Collection<ArkLeaf> leafs) {
+        Collection<byte[]> nodes) {
 
     public ArkRoundVTXTreeProposal(ArkTree tree) {
         this(tree.roots,
-                tree.nodes.values().stream().collect(Collectors.toMap(Transaction::getTxId, BaseMessage::serialize)),
+                tree.leafs,
                 tree.locks,
-                tree.leafs);
+                tree.nodes.values().stream().map(BaseMessage::serialize).toList()
+        );
     }
 }
