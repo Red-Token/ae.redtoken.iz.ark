@@ -190,7 +190,6 @@ public class AppTest2 extends LTBCMainTestCase {
             tree.nodes.put(branchTx);
             tree.spendPath.put(output.getOutPointFor(), new ArkTree.TransactionInPoint(branchTx.getTxId(), branchTi.getIndex()));
 
-
             // Now that the transaction is finished we add the leafs
             leafs.forEach(leaf ->
                     tree.leafs.add(new ArkTree.ArkLeaf(leaf.getOutPointFor())));
@@ -597,37 +596,14 @@ public class AppTest2 extends LTBCMainTestCase {
             ArkRoundVTXTreeProposal proposal = rw.createProposal(aors);
 
             //The response
-            Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
-
-            for (Initiator initiator : initiators) {
-                initiator.user.on(proposal);
-                nvtaMap.put(ByteBuffer.wrap(initiator.user.getActivePublicKey()), initiator.user().accept);
+            for (ArkInitiator initiator : initiators.stream().map(initiator -> initiator.user).toList()) {
+                initiator.on(proposal);
+                rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.accept);
             }
 
             StartConfirmationRequest scr = rw.createStartConfirmationRequest();
 
-//            // Yes things are going peachy we have the response
-//            Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
-//
-//            // Service provides branch
-//            ArkVirtualTransactionStack vtxs_full = new ArkVirtualTransactionStack(rootTx.serialize(), tree.getSignaturesForSToSign());
-//
-//            // Service signs the S part of the tree and sends out for start signatures
-//            StartConfirmationRequest scr = new StartConfirmationRequest(rootTx.serialize(), arkService.signStack(vtxs_full));
-
-            rw.assignWitnessToTree(nvtaMap, scr);
-
-//            // The tree is updated based on the SCR and nvtaMap
-//            for (Transaction node : tree.nodes.values()) {
-//                // Filter out the root node
-//                if (tree.roots.contains(node.getTxId()))
-//                    continue;
-//
-//                for (int i = 0; i < node.getInputs().size() - 1; i++) {
-//                    TransactionInput input = node.getInput(i);
-//                    assignWitness(input, tree, asf, nvtaMap, scr);
-//                }
-//            }
+            rw.assignWitnessToTree(rw.nvtaMap, scr);
 
             /// Sign the root
             for (ArkInitiator initiator : initiators.stream().map(initiator -> initiator.user).toList()) {

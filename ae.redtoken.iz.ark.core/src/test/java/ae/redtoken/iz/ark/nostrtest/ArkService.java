@@ -79,6 +79,12 @@ public class ArkService extends Actor {
         public void on(ByteBuffer pubKey, AppTest2.StartAccept sa) {
             saMap.put(pubKey, sa);
         }
+
+        Map<ByteBuffer, AppTest2.NewVTXTreeAccept> nvtaMap = new HashMap<>();
+
+        public void on(ByteBuffer pubKey, AppTest2.NewVTXTreeAccept accept) {
+            nvtaMap.put(pubKey, accept);
+        }
     }
 
     public ArkService(NetworkParameters params) {
