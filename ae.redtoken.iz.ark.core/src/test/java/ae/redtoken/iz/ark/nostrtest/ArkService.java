@@ -42,7 +42,9 @@ public class ArkService extends Actor {
             AppTest2.ArkVirtualTransactionStack vtxs_full = new AppTest2.ArkVirtualTransactionStack(rootTx.serialize(), tree.getSignaturesForSToSign());
 
             // Service signs the S part of the tree and sends out for start signatures
-            return new AppTest2.StartConfirmationRequest(rootTx.serialize(), signStack(vtxs_full));
+            AppTest2.StartConfirmationRequest scr = new AppTest2.StartConfirmationRequest(rootTx.serialize(), signStack(vtxs_full));
+            assignWitnessToTree(nvtaMap, scr);
+            return scr;
         }
 
         public void assignWitnessToTree(Map<ByteBuffer, AppTest2.NewVTXTreeAccept> nvtaMap, AppTest2.StartConfirmationRequest scr) {

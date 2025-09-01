@@ -601,9 +601,8 @@ public class AppTest2 extends LTBCMainTestCase {
                 rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.accept);
             }
 
+            /// Create the start signal
             StartConfirmationRequest scr = rw.createStartConfirmationRequest();
-
-            rw.assignWitnessToTree(rw.nvtaMap, scr);
 
             /// Sign the root
             for (ArkInitiator initiator : initiators.stream().map(initiator -> initiator.user).toList()) {
