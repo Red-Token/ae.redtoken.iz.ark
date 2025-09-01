@@ -29,7 +29,7 @@ public class ArkUser extends Actor {
         return ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(getVTXOLeafScript().program()));
     }
 
-    public void setNewTree(AppTest2.ArkTree tree) {
+    public void setNewTree(ArkTree tree) {
         // print out the leafs
         this.tree = tree;
 

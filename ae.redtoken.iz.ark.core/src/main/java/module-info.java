@@ -17,4 +17,6 @@ module ae.redtoken.iz.keyvault {
     requires org.bouncycastle.pkix;
     provides nostr.command.CommandHandler with EventCustomHandler2;
     exports ae.redtoken.iz.ark.nostrtest to com.fasterxml.jackson.databind;
+    opens ae.redtoken.iz.ark.nostrtest to com.fasterxml.jackson.databind;
+
 }

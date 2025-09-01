@@ -2,13 +2,13 @@ package ae.redtoken.iz.ark.nostrtest;
 
 //import ae.redtoken.iz.ark.nostrtest.Actor;
 
+import com.google.common.collect.Maps;
 import lombok.SneakyThrows;
 import org.bitcoinj.base.Coin;
 import org.bitcoinj.core.*;
 import org.bitcoinj.wallet.SendRequest;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,13 +25,14 @@ public class ArkService extends Actor {
             this.arf = arf;
         }
 
-        public AppTest2.ArkRoundVTXTreeProposal createProposal(List<AppTest2.ArkOnboardingRequest> aors) {
+        public ArkRoundVTXTreeProposal createProposal() {
+            List<AppTest2.ArkOnboardingRequest> aors = aorMap.values().stream().toList();
 
             // Now we make the next node.
             arf.createArkTree(tree, aors);
 
             /// Send it out for a review
-            return new AppTest2.ArkRoundVTXTreeProposal(tree);
+            return new ArkRoundVTXTreeProposal(tree);
         }
 
         public AppTest2.StartConfirmationRequest createStartConfirmationRequest() {
@@ -86,6 +87,12 @@ public class ArkService extends Actor {
 
         public void on(ByteBuffer pubKey, AppTest2.NewVTXTreeAccept accept) {
             nvtaMap.put(pubKey, accept);
+        }
+
+        Map<ByteBuffer, AppTest2.ArkOnboardingRequest> aorMap = Maps.newHashMap();
+
+        public void on(ByteBuffer pubKey, AppTest2.ArkOnboardingRequest aor) {
+            aorMap.put(pubKey, aor);
         }
     }
 

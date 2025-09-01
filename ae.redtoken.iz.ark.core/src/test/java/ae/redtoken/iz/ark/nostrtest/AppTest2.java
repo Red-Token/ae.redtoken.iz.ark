@@ -1,6 +1,13 @@
 package ae.redtoken.iz.ark.nostrtest;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.SneakyThrows;
@@ -20,6 +27,7 @@ import org.bitcoinj.wallet.SendRequest;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
@@ -32,20 +40,33 @@ import static ae.redtoken.iz.ark.nostrtest.TestNostr.RELAYS;
  */
 public class AppTest2 extends LTBCMainTestCase {
 
+    public static class Sha256HashDeserializer extends JsonDeserializer<Sha256Hash> {
+        @Override
+        public Sha256Hash deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+            String text = p.getText();
+            return Sha256Hash.wrap(text); // parse string into Sha256Hash
+        }
+    }
+
+    public static class Sha256HashSerializer extends StdSerializer<Sha256Hash> {
+        public Sha256HashSerializer() { super(Sha256Hash.class); }
+
+        @Override
+        public void serialize(Sha256Hash value, JsonGenerator gen, SerializerProvider provider) throws IOException {
+            gen.writeString(value.toString());
+        }
+    }
+
     record Initiator(ArkInitiator user) {
     }
 
-
-    record ArkRoundInitiate(Coin minValue) {
+    public record ArkRoundInitiate(long minValue) {
     }
 
-    record ArkOnboardingAsset(TransactionOutput output) {
+    public record ArkOnboardingAsset(TransactionOutput output) {
     }
 
-    record ArkOnboardingRequest(byte[] key, List<ArkOnboardingAsset> assets) {
-    }
-
-    public record ArkRoundVTXTreeProposal(ArkTree tree) {
+    public record ArkOnboardingRequest(byte[] key, List<ArkOnboardingAsset> assets) {
     }
 
     public record NewVTXTreeAccept(Map<Sha256Hash, byte[]> signedStack) {
@@ -188,11 +209,11 @@ public class AppTest2 extends LTBCMainTestCase {
 
             addFee(branchTx, arkService);
             tree.nodes.put(branchTx);
-            tree.spendPath.put(output.getOutPointFor(), new ArkTree.TransactionInPoint(branchTx.getTxId(), branchTi.getIndex()));
+//            tree.spendPath.put(output.getOutPointFor(), new ArkTree.TransactionInPoint(branchTx.getTxId(), branchTi.getIndex()));
 
             // Now that the transaction is finished we add the leafs
             leafs.forEach(leaf ->
-                    tree.leafs.add(new ArkTree.ArkLeaf(leaf.getOutPointFor())));
+                    tree.leafs.add(new ArkLeaf(leaf.getOutPointFor())));
 
             subNodes.forEach(subNode ->
                     createArkTree(tree, subNode.list, subNode.output));
@@ -311,16 +332,16 @@ public class AppTest2 extends LTBCMainTestCase {
 
         // This map contains transaction and the lock in binary form based on the txid.
         void on(ArkRoundVTXTreeProposal proposal) {
-            ArkTree tree = proposal.tree;
+            ArkTree tree = new ArkTree(proposal);
 
             ///  Each user goes over the proposal
             // TODO: THIS IS VERY BAD and WOULD FAIL IF THERE IS MORE THAN ONE LEAF
             Map<Sha256Hash, ArkVirtualTransactionNode> signatureRequestMap = new HashMap<>();
 
-            for (ArkTree.ArkLeaf leaf : tree.leafs.stream().filter(
+            for (ArkLeaf leaf : tree.leafs.stream().filter(
                     leaf -> Arrays.equals(getActivePublicKey(),
-                            asf.extractUserHashesFromVTXO(tree.getLock(leaf.outPoint))[0])).toList()) {
-                for (Transaction transaction = tree.nodes.get(leaf.outPoint.hash());
+                            asf.extractUserHashesFromVTXO(tree.getLock(new TransactionOutPoint(leaf.index(), leaf.hash())))[0])).toList()) {
+                for (Transaction transaction = tree.nodes.get(leaf.hash());
                      !(tree.roots.contains(transaction.getTxId()) || signatureRequestMap.containsKey(transaction.getTxId()));
                      transaction = tree.nodes.get(transaction.getInput(0).getOutpoint().hash())) {
 
@@ -353,70 +374,6 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             sa = new StartAccept(witnessMap);
-        }
-    }
-
-    public static class ArkTree {
-        public record TransactionInPoint(Sha256Hash txId, long index) {
-        }
-
-        public ArkService arkService;
-        public Map<TransactionOutPoint, TransactionInPoint> spendPath = new HashMap<>();
-
-        static class NodeMap extends HashMap<Sha256Hash, Transaction> {
-            Transaction put(Transaction transaction) {
-                return put(transaction.getTxId(), transaction);
-            }
-        }
-
-        record ArkLeaf(TransactionOutPoint outPoint) {
-        }
-
-        Collection<Sha256Hash> roots;
-        NodeMap nodes = new NodeMap();
-
-        //Locks is a hashmap where you lookup the lock program based on the output that it locks
-        //So if you have an output, the locks contains the program for the input, to be signed to unlock the lock
-        Map<Sha256Hash, byte[]> locks = new HashMap<>();
-        Collection<ArkLeaf> leafs = new ArrayList<>();
-
-        TransactionOutput getOutput(TransactionOutPoint top) {
-            return nodes.get(top.hash()).getOutput(top.index());
-        }
-
-        /**
-         * Gets the lock that unlocks the Output behind this OutPoint
-         *
-         * @param top Outpoint to be unlocked
-         * @return
-         */
-        byte[] getLock(TransactionOutPoint top) {
-            return locks.get(Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(Script.parse(getOutput(top).getScriptBytes()))));
-        }
-
-        byte[] getLock(Transaction transaction) {
-            return getLock(transaction.getInput(0).getOutpoint());
-        }
-
-        Collection<AppTest2.ArkVirtualTransactionNode> getSignaturesForSToSign() {
-            return nodes.values().stream()
-                    .filter(transaction -> !roots.contains(transaction.getTxId()))
-                    .map(transaction -> new AppTest2.ArkVirtualTransactionNode(
-                            transaction.serialize(),
-                            getLock(transaction)))
-                    .toList();
-        }
-
-        Collection<Transaction> getSpendPath(TransactionOutput leaf) {
-            List<Transaction> tl = new ArrayList<>();
-
-            for (Transaction t = nodes.get(leaf.getOutPointFor().hash());
-                 !roots.contains(t.getTxId());
-                 t = nodes.get(t.getInput(0).getOutpoint().hash())) {
-                tl.addFirst(t);
-            }
-
-            return tl;
         }
     }
 
@@ -585,36 +542,38 @@ public class AppTest2 extends LTBCMainTestCase {
 
             /// Service create the tree
             arkService.tree = new ArkTree();
-            arkService.tree.arkService = arkService;
+//            arkService.tree.arkService = arkService;
 
             ArkService.StatefulRoundWizard rw = arkService.new StatefulRoundWizard(arf);
 
+            ObjectMapper om =  new ObjectMapper();
+
+            SimpleModule module = new SimpleModule();
+            module.addKeySerializer(Sha256Hash.class, new Sha256HashKeySerializer());
+            module.addKeyDeserializer(Sha256Hash.class, new Sha256HashKeyDeserializer());
+            module.addDeserializer(Sha256Hash.class, new Sha256HashDeserializer());
+            module.addSerializer(Sha256Hash.class, new Sha256HashSerializer());
+            om.registerModule(module);
+
             /// START
-            ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10));
+            ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10).getValue());
 
             for (ArkInitiator initiator : initiators) {
-                initiator.on(ari);
+                String message = om.writeValueAsString(ari);
+                System.out.println(message);
+                initiator.on(om.readValue(message, ArkRoundInitiate.class));
+                rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.aor);
             }
-
-            /// The users ask to onboard the ARK
-//            List<ArkOnboardingRequest> aors = Lists.newArrayList();
-            Map<ByteBuffer, ArkOnboardingRequest> aorMap = Maps.newHashMap();
-
-            for (ArkInitiator initiator : initiators) {
-//                aors.add(initiator.aor);
-                aorMap.put(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.aor);
-            }
-
-            List<ArkOnboardingRequest> list = initiators.stream().map(arkInitiator -> aorMap.get(ByteBuffer.wrap(arkInitiator.getActivePublicKey()))).toList();
-            List<ArkOnboardingRequest> list2 = aorMap.values().stream().toList();
-
 
             /// Send it out for a review
-            ArkRoundVTXTreeProposal proposal = rw.createProposal(list2);
+            ArkRoundVTXTreeProposal proposal = rw.createProposal();
+
 
             //The response
             for (ArkInitiator initiator : initiators) {
-                initiator.on(proposal);
+                String message = om.writeValueAsString(proposal);
+                System.out.println(message);
+                initiator.on(om.readValue(message, ArkRoundVTXTreeProposal.class));
                 rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.accept);
             }
 
@@ -623,7 +582,9 @@ public class AppTest2 extends LTBCMainTestCase {
 
             /// Sign the root
             for (ArkInitiator initiator : initiators) {
-                initiator.on(scr);
+                String message = om.writeValueAsString(scr);
+                System.out.println(message);
+                initiator.on(om.readValue(message, StartConfirmationRequest.class));
                 rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.sa);
             }
 
