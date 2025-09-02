@@ -37,9 +37,9 @@ public class ArkScriptFactory {
         return witness;
     }
 
-    public static TransactionWitness createVTXONodeUnlockWitnessScript(byte[][] userSignatures, byte[] program) {
+    public static TransactionWitness createVTXONodeUnlockWitnessScript(List<byte[]> userSignatures, byte[] program) {
 
-        List<byte[]> pushes = new ArrayList<>(Arrays.asList(userSignatures));
+        List<byte[]> pushes = new ArrayList<>(userSignatures);
         pushes.add(new byte[]{0x01});
         pushes.add(program);
 

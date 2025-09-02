@@ -411,11 +411,9 @@ public class AppTest2 extends LTBCMainTestCase {
             signatures.addFirst(signature);
         }
 
-        byte[][] userSigs = signatures.toArray(new byte[signatures.size()][]);
-
         // create the witness
         TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
-                userSigs,
+                signatures,
                 unlockScriptBytes);
 
         // assign it to the input
