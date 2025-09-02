@@ -74,6 +74,15 @@ public class AppTest2 extends LTBCMainTestCase {
     public record NewVTXTreeAccept(SignatureMap signedStack) {
     }
 
+    public record ArkRoundStartConfirmationRequest(byte[] rootTx, UserSignaturesMap arkServiceSignatures) {
+    }
+
+    public record ArkRoundStartAccept(Map<TransactionOutPoint, byte[]> witnessMap) {
+    }
+
+    public record ArkCollaborativeExitRequest() {
+    }
+
     // When the value is a pubkey, we convert it to a hexstring
     public static class UserSignaturesMap extends HashMap<String, SignatureMap> {
     }
@@ -81,11 +90,6 @@ public class AppTest2 extends LTBCMainTestCase {
     public static class SignatureMap extends HashMap<Sha256Hash, byte[]> {
     }
 
-    public record StartConfirmationRequest(byte[] rootTx, UserSignaturesMap arkServiceSignatures) {
-    }
-
-    public record StartAccept(Map<TransactionOutPoint, byte[]> witnessMap) {
-    }
 
     public static class ArkRoundFactory {
         final NetworkParameters params;
@@ -367,9 +371,9 @@ public class AppTest2 extends LTBCMainTestCase {
             accept = new NewVTXTreeAccept(signedStack);
         }
 
-        StartAccept sa;
+        ArkRoundStartAccept sa;
 
-        public void on(StartConfirmationRequest scr) {
+        public void on(ArkRoundStartConfirmationRequest scr) {
             assignWitnessToTree(scr);
 
             Transaction rootTx = Transaction.read(ByteBuffer.wrap(scr.rootTx));
@@ -383,11 +387,11 @@ public class AppTest2 extends LTBCMainTestCase {
                 witnessMap.put(input.getOutpoint(), witnessBytes);
             }
 
-            sa = new StartAccept(witnessMap);
+            sa = new ArkRoundStartAccept(witnessMap);
         }
     }
 
-    public static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, StartConfirmationRequest scr) {
+    public static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, ArkRoundStartConfirmationRequest scr) {
 
         // first we select the output
         TransactionOutput connectedOutput = tree.getOutput(ti.getOutpoint());
@@ -483,6 +487,7 @@ public class AppTest2 extends LTBCMainTestCase {
         }
 
         arkService.createFundingShards(10);
+        alice.createFundingShards(10);
         mineAndWait();
 
         // Create the root node
@@ -588,13 +593,13 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             /// Create the start signal
-            StartConfirmationRequest scr = rw.createStartConfirmationRequest();
+            ArkRoundStartConfirmationRequest scr = rw.createStartConfirmationRequest();
 
             /// Sign the root
             for (ArkInitiator initiator : initiators) {
                 String message = om.writeValueAsString(scr);
                 System.out.println(message);
-                initiator.on(om.readValue(message, StartConfirmationRequest.class));
+                initiator.on(om.readValue(message, ArkRoundStartConfirmationRequest.class));
                 rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.sa);
             }
 
@@ -606,14 +611,20 @@ public class AppTest2 extends LTBCMainTestCase {
             ///  The ARK Round is deposit
             ArkTree tree = arkService.tree;
 
-            alice.setNewTree(tree);
-            bob.setNewTree(tree);
-            carol.setNewTree(tree);
-            david.setNewTree(tree);
+            alice.startRound();
+            bob.startRound();
+            carol.startRound();
+            david.startRound();
 
             for (ArkUser user : initiators) {
                 Assertions.assertEquals(1, user.unspentVTXOs.size());
             }
+
+
+            ArkCollaborativeExitRequest acer = new  ArkCollaborativeExitRequest();
+
+            arkService.on(ByteBuffer.wrap(alice.getActivePublicKey()), acer);
+
 
             // Collaborative exit
             // Agreed exit for A
@@ -685,7 +696,7 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             System.out.println("HLLSLSSL");
-            Assertions.assertEquals(266000000, alice.kit.wallet().getBalance().value);
+            Assertions.assertEquals(265999467, alice.kit.wallet().getBalance().value);
         }
 
         /**

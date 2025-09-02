@@ -28,11 +28,8 @@ public class ArkUser extends Actor {
         return ScriptBuilder.createP2WSHOutputScript(Sha256Hash.hash(getVTXOLeafScript().program()));
     }
 
-    public void setNewTree(ArkTree tree) {
-        // print out the leafs
-        this.tree = tree;
-
-        unspentVTXOs = tree.nodes.values().stream()
+    public void startRound() {
+        unspentVTXOs = this.tree.nodes.values().stream()
                 .flatMap(transaction -> transaction.getOutputs().stream())
                 .filter(t -> Arrays.equals(t.getScriptBytes(), getLockScript().program()))
                 .collect(Collectors.toList());

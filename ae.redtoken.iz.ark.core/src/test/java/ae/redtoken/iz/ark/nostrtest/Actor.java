@@ -11,6 +11,7 @@ import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.kits.WalletAppKit;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
+import org.bitcoinj.wallet.SendRequest;
 import org.junit.jupiter.api.Assertions;
 
 import java.io.IOException;
@@ -171,7 +172,7 @@ public class Actor {
         return witness.serialize();
     }
 
-    public void assignWitnessToTree(AppTest2.StartConfirmationRequest scr) {
+    public void assignWitnessToTree(AppTest2.ArkRoundStartConfirmationRequest scr) {
         // The tree is updated based on the SCR and nvtaMap
         for (Transaction node : tree.nodes.values()) {
             // Filter out the root node
@@ -183,5 +184,23 @@ public class Actor {
                 assignWitness(input, tree, asf, scr);
             }
         }
+    }
+
+    @SneakyThrows
+    public void createFundingShards(int num) {
+
+        // Create funding outputs
+        Transaction ftx = new Transaction();
+        ftx.setVersion(2);
+
+        for (int i = 0; i < num; i++)
+            ftx.addOutput(ArkService.FUNDING_SHARD_VALUE, kit.wallet().freshReceiveAddress());
+
+        SendRequest sr = SendRequest.forTx(ftx);
+        sr.feePerKb = Coin.valueOf(1000);
+        kit.wallet().completeTx(sr);
+
+        // Send it out
+        kit.peerGroup().broadcastTransaction(sr.tx);
     }
 }

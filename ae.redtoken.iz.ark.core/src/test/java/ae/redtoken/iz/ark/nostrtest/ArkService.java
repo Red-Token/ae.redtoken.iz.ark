@@ -3,12 +3,10 @@ package ae.redtoken.iz.ark.nostrtest;
 //import ae.redtoken.iz.ark.nostrtest.Actor;
 
 import com.google.common.collect.Maps;
-import lombok.SneakyThrows;
 import org.bitcoinj.base.Coin;
 import org.bitcoinj.base.internal.ByteUtils;
 import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.ECKey;
-import org.bitcoinj.wallet.SendRequest;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -36,7 +34,7 @@ public class ArkService extends Actor {
             return new ArkRoundVTXTreeProposal(tree);
         }
 
-        public AppTest2.StartConfirmationRequest createStartConfirmationRequest() {
+        public AppTest2.ArkRoundStartConfirmationRequest createStartConfirmationRequest() {
             // Yes things are going peachy we have the response
             Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
 
@@ -54,19 +52,19 @@ public class ArkService extends Actor {
             nvtaMap.forEach((byteBuffer, newVTXTreeAccept) -> usm.put(ByteUtils.formatHex(byteBuffer.array()), newVTXTreeAccept.signedStack()));
 
             // Service signs the S part of the tree and sends out for start signatures
-            AppTest2.StartConfirmationRequest scr = new AppTest2.StartConfirmationRequest(rootTx.serialize(), usm);
+            AppTest2.ArkRoundStartConfirmationRequest scr = new AppTest2.ArkRoundStartConfirmationRequest(rootTx.serialize(), usm);
 //            assignWitnessToTree(nvtaMap, scr);
             assignWitnessToTree(scr);
             return scr;
         }
 
         //        Collection<AppTest2.StartAccept> startAccepts;
-        Map<ByteBuffer, AppTest2.StartAccept> saMap = new HashMap<>();
+        Map<ByteBuffer, AppTest2.ArkRoundStartAccept> saMap = new HashMap<>();
 
         public Transaction createRootTx() {
             Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
             // Update the witness for the rootTx based on the SA
-            for (AppTest2.StartAccept sa : saMap.values()) {
+            for (AppTest2.ArkRoundStartAccept sa : saMap.values()) {
                 // Go over the response and update the witness
                 for (TransactionOutPoint top : sa.witnessMap().keySet()) {
                     TransactionInput ti = rootTx.getInputs().stream().filter(input -> input.getOutpoint().equals(top)).findFirst().orElseThrow();
@@ -77,7 +75,7 @@ public class ArkService extends Actor {
             return rootTx;
         }
 
-        public void on(ByteBuffer pubKey, AppTest2.StartAccept sa) {
+        public void on(ByteBuffer pubKey, AppTest2.ArkRoundStartAccept sa) {
             saMap.put(pubKey, sa);
         }
 
@@ -105,23 +103,9 @@ public class ArkService extends Actor {
 
     final static Coin FUNDING_SHARD_VALUE = Coin.valueOf(0, 1);
 
-    @SneakyThrows
-    public void createFundingShards(int num) {
-
-        // Create funding outputs
-        Transaction ftx = new Transaction();
-        ftx.setVersion(2);
-
-        for (int i = 0; i < num; i++)
-            ftx.addOutput(FUNDING_SHARD_VALUE, kit.wallet().freshReceiveAddress());
-
-        SendRequest sr = SendRequest.forTx(ftx);
-        sr.feePerKb = Coin.valueOf(1000);
-        kit.wallet().completeTx(sr);
-
-        // Send it out
-        kit.peerGroup().broadcastTransaction(sr.tx);
+    public void on(ByteBuffer pubKey, AppTest2.ArkCollaborativeExitRequest acer) {
     }
+
 
 //    public Collection<AppTest2.ArkVirtualTransactionNode> prepareSignatures(AppTest2.ArkTree tree) {
 //
