@@ -100,8 +100,8 @@ public class TestSignatures extends LTBCMainTestCase {
         TransactionInput input = t2.addInput(output);
 
 //        //TODO: Not sure BAAHL will not eat me for this, chatGPT says it does not
-//        byte[] aliceSig = alice.signInputWitness(t2.serialize(), lockScript.program(), input.getIndex(), output.getValue());
-//        byte[] arkServiceSig = arkService.signInputWitness(t2.serialize(), lockScriptByteCode, input.getIndex(), output.getValue());
+//        byte[] aliceSig = alice.signInputWitness(t2.transaction(), lockScript.program(), input.getIndex(), output.getValue());
+//        byte[] arkServiceSig = arkService.signInputWitness(t2.transaction(), lockScriptByteCode, input.getIndex(), output.getValue());
 
         // To unlock the transaction we should use this, why? Don't Know!
         Script witnessScript = ScriptBuilder.createP2PKHOutputScript(alice.activeKey);

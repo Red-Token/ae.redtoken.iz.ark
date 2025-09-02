@@ -17,6 +17,8 @@ import static ae.redtoken.iz.ark.nostrtest.AppTest2.setWitness;
 
 public class ArkService extends Actor {
 
+    public AppTest2.ArkCollaborativeExitAccept acec;
+
     public class StatefulRoundWizard {
         private final AppTest2.ArkRoundFactory arf;
 
@@ -104,6 +106,34 @@ public class ArkService extends Actor {
     final static Coin FUNDING_SHARD_VALUE = Coin.valueOf(0, 1);
 
     public void on(ByteBuffer pubKey, AppTest2.ArkCollaborativeExitRequest acer) {
+        // On the other side...
+        Transaction tx = Transaction.read(ByteBuffer.wrap(acer.transaction()));
+
+        Map<Integer, byte[]> signatures = new HashMap<>();
+
+        // Add the transaction to the tree
+        tree.nodes.put(tx);
+
+        // Input to be signed
+        TransactionInput ti = tx.getInput(0);
+
+        // Connected Output
+        TransactionOutput to = tree.getOutput(ti.getOutpoint());
+
+        if (!to.isAvailableForSpending()) {
+            throw new RuntimeException("Not available to send transaction");
+        }
+
+        byte[] lock = tree.getLock(tx);
+
+        // Marking it as spent
+        to.markAsSpent(ti);
+
+        // Service signs it
+        byte[] assig = signInputWitness(tx.serialize(), lock, 0, to.getValue());
+        setWitness(ti, asf.createVTXOLeafColaborativeUnlockWitness(acer.counterpartSignature(), assig, lock));
+
+        this.acec = new AppTest2.ArkCollaborativeExitAccept(assig);
     }
 
 
@@ -112,7 +142,7 @@ public class ArkService extends Actor {
 //        return tree.nodes.values().stream()
 //                .filter(transaction -> !tree.roots.contains(transaction.getTxId()))
 //                .map(transaction -> new AppTest2.ArkVirtualTransactionNode(
-//                        transaction.serialize(),
+//                        transaction.transaction(),
 //                        tree.getLock(transaction)))
 //                .toList();
 //    }

@@ -80,8 +80,12 @@ public class AppTest2 extends LTBCMainTestCase {
     public record ArkRoundStartAccept(Map<TransactionOutPoint, byte[]> witnessMap) {
     }
 
-    public record ArkCollaborativeExitRequest() {
+    public record ArkCollaborativeExitRequest(byte[] transaction, byte[] counterpartSignature) {
     }
+
+    public record ArkCollaborativeExitAccept(byte[] signature) {
+    }
+
 
     // When the value is a pubkey, we convert it to a hexstring
     public static class UserSignaturesMap extends HashMap<String, SignatureMap> {
@@ -322,6 +326,73 @@ public class AppTest2 extends LTBCMainTestCase {
     }
 
     static class ArkInitiator extends ArkUser {
+
+        class CollaborativeExitWizard {
+
+            Transaction vtx1_1_1;
+            TransactionInput ti_1_1_1;
+            byte[] rs1_1_1;
+            byte[] sigABin;
+            List<Transaction> tl = new ArrayList<>();
+
+            public ArkCollaborativeExitRequest createRequest() {
+
+                // Collaborative exit
+                // Agreed exit for A
+                // this is a hashmap of the txid and the corresponding transaction
+                vtx1_1_1 = new Transaction();
+                vtx1_1_1.setVersion(2);
+
+                // Create the output and send in the hash of the script into that output.
+                vtx1_1_1.addOutput(Coin.valueOf(0, 66), kit.wallet().freshReceiveAddress());
+
+                TransactionOutput output = unspentVTXOs.stream().findFirst().orElseThrow();
+
+                // Connect the input
+                ti_1_1_1 = vtx1_1_1.addInput(output);
+                fund(vtx1_1_1, ArkInitiator.this);
+
+                // Lets rool!
+                // This is the lock
+                rs1_1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(getActivePublicKey()).program()));
+
+                // This is Alice signature
+                sigABin = signInputWitness(vtx1_1_1.serialize(), rs1_1_1, ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
+
+                // Collaborative exit request
+                // Set of UTXO:s to exit, OutPoint
+                // This is on the ARK Service side
+                return new ArkCollaborativeExitRequest(vtx1_1_1.serialize(), sigABin);
+            }
+
+            public void on(ArkCollaborativeExitAccept acec) {
+                // Set the witness
+                // Sign the input by everybody
+                {
+                    setWitness(ti_1_1_1, asf.createVTXOLeafColaborativeUnlockWitness(sigABin, acec.signature, rs1_1_1));
+                }
+
+                // Now we can fold the tent
+
+
+
+                tl.addFirst(vtx1_1_1);
+
+                TransactionOutput leaf = unspentVTXOs.stream().findFirst().orElseThrow();
+
+//            Collection<Transaction> spendPath = alice.tree.getSpendPath(leaf);
+//            spendPath.add(vtx1_1_1);
+
+                for (Transaction t = tree.nodes.get(leaf.getOutPointFor().hash());
+                     !tree.roots.contains(t.getTxId());
+                     t = tree.nodes.get(t.getInput(0).getOutpoint().hash())) {
+                    tl.addFirst(t);
+                }
+
+            }
+        }
+
+
         private final ArkService service;
 
         //Hack
@@ -620,76 +691,15 @@ public class AppTest2 extends LTBCMainTestCase {
                 Assertions.assertEquals(1, user.unspentVTXOs.size());
             }
 
+            ArkInitiator.CollaborativeExitWizard exitWizard = alice.new CollaborativeExitWizard();
 
-            ArkCollaborativeExitRequest acer = new  ArkCollaborativeExitRequest();
+            ArkCollaborativeExitRequest acer = exitWizard.createRequest();
 
             arkService.on(ByteBuffer.wrap(alice.getActivePublicKey()), acer);
 
-            // Collaborative exit
-            // Agreed exit for A
-            // this is a hashmap of the txid and the corresponding transaction
-            Transaction vtx1_1_1 = new Transaction();
-            vtx1_1_1.setVersion(2);
+            exitWizard.on(arkService.acec);
 
-            // Create the output and send in the hash of the script into that output.
-            vtx1_1_1.addOutput(Coin.valueOf(0, 66), alice.kit.wallet().freshReceiveAddress());
-
-            TransactionOutput output = alice.unspentVTXOs.stream().findFirst().orElseThrow();
-
-            // Connect the input
-            TransactionInput ti_1_1_1 = vtx1_1_1.addInput(output);
-            fund(vtx1_1_1, alice);
-
-            // Lets rool!
-            byte[] rs1_1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(alice.getActivePublicKey()).program()));
-            byte[] sigABin = alice.signInputWitness(vtx1_1_1.serialize(), rs1_1_1, ti_1_1_1.getIndex(), Objects.requireNonNull(ti_1_1_1.getConnectedOutput()).getValue());
-
-            // Collaborative exit request
-            // Set of UTXO:s to exit, OutPoint
-            // This is on the ARK Service side
-
-            Map<Integer, SignatureRequest> programMap = Map.of(ti_1_1_1.getIndex(), new SignatureRequest(rs1_1_1, sigABin));
-
-            Transaction tx = Transaction.read(ByteBuffer.wrap(vtx1_1_1.serialize()));
-            Map<Integer, byte[]> signatures = new HashMap<>();
-
-            tree.nodes.put(vtx1_1_1.getTxId(), vtx1_1_1);
-
-            for (Integer index : programMap.keySet()) {
-                TransactionInput ti = tx.getInput(index);
-                TransactionOutput to = tree.getOutput(ti.getOutpoint());
-
-                if (!to.isAvailableForSpending()) {
-                    throw new RuntimeException("Not available to send transaction");
-                }
-
-                to.markAsSpent(ti);
-                signatures.put(index, arkService.signInputWitness(tx.serialize(), programMap.get(index).program, index, to.getValue()));
-            }
-
-
-            // Sign the input by everybody
-            {
-                setWitness(ti_1_1_1, asf.createVTXOLeafColaborativeUnlockWitness(sigABin, signatures.get(ti_1_1_1.getIndex()), rs1_1_1));
-            }
-
-
-            List<Transaction> tl = new ArrayList<>();
-
-            tl.addFirst(vtx1_1_1);
-
-            TransactionOutput leaf = alice.unspentVTXOs.stream().findFirst().orElseThrow();
-
-//            Collection<Transaction> spendPath = alice.tree.getSpendPath(leaf);
-//            spendPath.add(vtx1_1_1);
-
-            for (Transaction t = alice.tree.nodes.get(leaf.getOutPointFor().hash());
-                 !alice.tree.roots.contains(t.getTxId());
-                 t = alice.tree.nodes.get(t.getInput(0).getOutpoint().hash())) {
-                tl.addFirst(t);
-            }
-
-            for (Transaction t : tl) {
+            for (Transaction t : exitWizard.tl) {
                 sendAndVerify(t, arkService, alice);
             }
 
@@ -832,7 +842,7 @@ public class AppTest2 extends LTBCMainTestCase {
     }
 
 
-    private void fund(Transaction tx, Actor actor) {
+    private static void fund(Transaction tx, Actor actor) {
         System.out.println("To be spent: " + actor.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getValue().equals(Coin.valueOf(0, 1))).count());
 
         // Add the funding input, post transaction signature
