@@ -406,7 +406,7 @@ public class AppTest2 extends LTBCMainTestCase {
         byte[][] userKeys = asf.extractUserHashesFromVTXO(program);
 //        byte[] serviceKey = asf.extractServiceHashFromVTXO(program);
 
-        byte[] serviceKey = unlockKeyHashes.removeLast();
+//        byte[] serviceKey = unlockKeyHashes.removeLast();
 
         // create the list of user signatures
         List<byte[]> userSignatures = Lists.newArrayList();
@@ -423,7 +423,7 @@ public class AppTest2 extends LTBCMainTestCase {
         // create the witness
         TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
                 userSigs,
-                scr.arkServiceSignatures.get(ByteUtils.formatHex(serviceKey)).get(programHash),
+//                scr.arkServiceSignatures.get(ByteUtils.formatHex(serviceKey)).get(programHash),
                 program);
 
         // assign it to the input
