@@ -17,6 +17,7 @@ import nostr.event.impl.GenericEvent;
 import org.bitcoin.tfw.ltbc.tc.LTBCMainTestCase;
 import org.bitcoinj.base.Coin;
 import org.bitcoinj.base.Sha256Hash;
+import org.bitcoinj.base.internal.ByteUtils;
 import org.bitcoinj.core.*;
 import org.bitcoinj.core.listeners.NewBestBlockListener;
 import org.bitcoinj.crypto.ECKey;
@@ -49,7 +50,9 @@ public class AppTest2 extends LTBCMainTestCase {
     }
 
     public static class Sha256HashSerializer extends StdSerializer<Sha256Hash> {
-        public Sha256HashSerializer() { super(Sha256Hash.class); }
+        public Sha256HashSerializer() {
+            super(Sha256Hash.class);
+        }
 
         @Override
         public void serialize(Sha256Hash value, JsonGenerator gen, SerializerProvider provider) throws IOException {
@@ -69,10 +72,17 @@ public class AppTest2 extends LTBCMainTestCase {
     public record ArkOnboardingRequest(byte[] key, List<ArkOnboardingAsset> assets) {
     }
 
-    public record NewVTXTreeAccept(Map<Sha256Hash, byte[]> signedStack) {
+    public record NewVTXTreeAccept(SignatureMap signedStack) {
     }
 
-    public record StartConfirmationRequest(byte[] rootTx, Map<Sha256Hash, byte[]> arkServiceSignatures) {
+    // When the value is a pubkey, we convert it to a hexstring
+    public static class UserSignaturesMap extends HashMap<String, SignatureMap> {
+    }
+
+    public static class SignatureMap extends HashMap<Sha256Hash, byte[]> {
+    }
+
+    public record StartConfirmationRequest(byte[] rootTx, UserSignaturesMap arkServiceSignatures) {
     }
 
     public record StartAccept(Map<TransactionOutPoint, byte[]> witnessMap) {
@@ -353,7 +363,7 @@ public class AppTest2 extends LTBCMainTestCase {
             byte[] rootBytes = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow()).serialize();
             ArkVirtualTransactionStack avts = new ArkVirtualTransactionStack(rootBytes, signatureRequestMap.values());
 
-            Map<Sha256Hash, byte[]> signedStack = signStack(avts);
+            SignatureMap signedStack = signStack(avts);
 
             // The response
             accept = new NewVTXTreeAccept(signedStack);
@@ -378,7 +388,8 @@ public class AppTest2 extends LTBCMainTestCase {
     }
 
     //    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
-    public static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, NewVTXTreeAccept> acceptMap, StartConfirmationRequest scr) {
+    public static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, StartConfirmationRequest scr) {
+//    public static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, NewVTXTreeAccept> acceptMap, StartConfirmationRequest scr) {
 
         // first we select the output
         Script outputScript = Script.parse(Objects.requireNonNull(ti.getConnectedOutput()).getScriptBytes());
@@ -392,11 +403,15 @@ public class AppTest2 extends LTBCMainTestCase {
         // decode the program to get the pubkeys needed
         byte[][] userKeys = asf.extractUserHashesFromVTXO(program);
 
+        byte[] serviceKey = asf.extractServiceHashFromVTXO(program);
+
         // create the list of user signatures
         List<byte[]> userSignatures = Lists.newArrayList();
 
         for (byte[] userKey : userKeys) {
-            userSignatures.addFirst(acceptMap.get(ByteBuffer.wrap(userKey)).signedStack.get(programHash));
+            String userKeyString = ByteUtils.formatHex(userKey);
+            byte[] signature = scr.arkServiceSignatures.get(userKeyString).get(programHash);
+            userSignatures.addFirst(signature);
         }
 
         byte[][] userSigs = userSignatures.toArray(new byte[userSignatures.size()][]);
@@ -404,7 +419,7 @@ public class AppTest2 extends LTBCMainTestCase {
         // create the witness
         TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
                 userSigs,
-                scr.arkServiceSignatures.get(programHash),
+                scr.arkServiceSignatures.get(ByteUtils.formatHex(serviceKey)).get(programHash),
                 program);
 
         // assign it to the input
@@ -488,15 +503,6 @@ public class AppTest2 extends LTBCMainTestCase {
 
         Arrays.stream(users).forEach(user -> user.asf = asf);
 
-        ObjectMapper om =  new ObjectMapper();
-
-        SimpleModule module = new SimpleModule();
-        module.addKeySerializer(Sha256Hash.class, new Sha256HashKeySerializer());
-        module.addKeyDeserializer(Sha256Hash.class, new Sha256HashKeyDeserializer());
-        module.addDeserializer(Sha256Hash.class, new Sha256HashDeserializer());
-        module.addSerializer(Sha256Hash.class, new Sha256HashSerializer());
-        om.registerModule(module);
-
         // Start the ARK
         /**
          *  ARK RoundInitiate
@@ -555,6 +561,14 @@ public class AppTest2 extends LTBCMainTestCase {
 
             ArkService.StatefulRoundWizard rw = arkService.new StatefulRoundWizard(arf);
 
+            ObjectMapper om = new ObjectMapper();
+
+            SimpleModule module = new SimpleModule();
+            module.addKeySerializer(Sha256Hash.class, new Sha256HashKeySerializer());
+            module.addKeyDeserializer(Sha256Hash.class, new Sha256HashKeyDeserializer());
+            module.addDeserializer(Sha256Hash.class, new Sha256HashDeserializer());
+            module.addSerializer(Sha256Hash.class, new Sha256HashSerializer());
+            om.registerModule(module);
 
             /// START
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10).getValue());
@@ -682,7 +696,7 @@ public class AppTest2 extends LTBCMainTestCase {
          *  Step 1: Eve creates a quotation
          */
 
-        ObjectMapper om2 = new ObjectMapper();
+        ObjectMapper om = new ObjectMapper();
         TestNostr.ArkQuotationContent aqc = new TestNostr.ArkQuotationContent();
 
         aqc.amount = 30000;
@@ -695,7 +709,7 @@ public class AppTest2 extends LTBCMainTestCase {
         };
         aqc.offer.vat = "5%";
 
-        String offer = om2.writeValueAsString(aqc);
+        String offer = om.writeValueAsString(aqc);
         System.out.println(offer);
 
         TestNostr.NIP0666<TestNostr.NIP0666ArkQuotationEvent> nip0666Stack = new TestNostr.NIP0666<>();

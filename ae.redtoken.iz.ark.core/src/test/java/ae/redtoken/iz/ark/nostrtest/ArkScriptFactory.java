@@ -25,16 +25,6 @@ public class ArkScriptFactory {
     }
 
     public static TransactionWitness createVTXONodeUnlockWitnessScript(byte[][] userSignatures, byte[] serviceSignature, byte[] program) {
-//        int i = 0;
-//        TransactionWitness witness = new TransactionWitness(userSignatures.length + 3);
-//        witness.setPush(i++, serviceSignature);
-//
-//        for (byte[] userSignature : userSignatures) {
-//            witness.setPush(i++, userSignature);
-//        }
-//
-//        witness.setPush(i++, new byte[]{0x01});
-//        witness.setPush(i, program);
 
         List<byte[]> pushes = new ArrayList<>();
 
@@ -195,5 +185,17 @@ public class ArkScriptFactory {
         }
 
         return userSignatures.toArray(new byte[0][]);
+    }
+
+    public byte[] extractServiceHashFromVTXO(byte[] program) {
+        Script programScript = Script.parse(program);
+
+        byte[] serviceHash = null;
+
+        for (int i = 0; programScript.chunks().get(i).opcode != ScriptOpCodes.OP_CHECKSIG; i += 2) {
+            serviceHash = programScript.chunks().get(i + 1).data;
+        }
+
+        return serviceHash;
     }
 }

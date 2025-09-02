@@ -5,7 +5,10 @@ package ae.redtoken.iz.ark.nostrtest;
 import com.google.common.collect.Maps;
 import lombok.SneakyThrows;
 import org.bitcoinj.base.Coin;
+import org.bitcoinj.base.Sha256Hash;
+import org.bitcoinj.base.internal.ByteUtils;
 import org.bitcoinj.core.*;
+import org.bitcoinj.crypto.ECKey;
 import org.bitcoinj.wallet.SendRequest;
 
 import java.nio.ByteBuffer;
@@ -42,13 +45,25 @@ public class ArkService extends Actor {
             // Service provides branch
             AppTest2.ArkVirtualTransactionStack vtxs_full = new AppTest2.ArkVirtualTransactionStack(rootTx.serialize(), tree.getSignaturesForSToSign());
 
+            ECKey.fromPublicOnly(ArkService.this.getActivePublicKey()).getPublicKeyAsHex();
+            ByteUtils.formatHex(ArkService.this.getActivePublicKey());
+
+            AppTest2.SignatureMap signedStack = signStack(vtxs_full);
+
+            AppTest2.UserSignaturesMap usm = new AppTest2.UserSignaturesMap();
+            usm.put(ByteUtils.formatHex(getActivePublicKey()), signedStack);
+
+            nvtaMap.forEach((byteBuffer, newVTXTreeAccept) -> usm.put(ByteUtils.formatHex(byteBuffer.array()), newVTXTreeAccept.signedStack()));
+
             // Service signs the S part of the tree and sends out for start signatures
-            AppTest2.StartConfirmationRequest scr = new AppTest2.StartConfirmationRequest(rootTx.serialize(), signStack(vtxs_full));
-            assignWitnessToTree(nvtaMap, scr);
+            AppTest2.StartConfirmationRequest scr = new AppTest2.StartConfirmationRequest(rootTx.serialize(), usm);
+//            assignWitnessToTree(nvtaMap, scr);
+            assignWitnessToTree(scr);
             return scr;
         }
 
-        public void assignWitnessToTree(Map<ByteBuffer, AppTest2.NewVTXTreeAccept> nvtaMap, AppTest2.StartConfirmationRequest scr) {
+//        public void assignWitnessToTree(Map<ByteBuffer, AppTest2.NewVTXTreeAccept> nvtaMap, AppTest2.StartConfirmationRequest scr) {
+            public void assignWitnessToTree(AppTest2.StartConfirmationRequest scr) {
             // The tree is updated based on the SCR and nvtaMap
             for (Transaction node : tree.nodes.values()) {
                 // Filter out the root node
@@ -57,7 +72,8 @@ public class ArkService extends Actor {
 
                 for (int i = 0; i < node.getInputs().size() - 1; i++) {
                     TransactionInput input = node.getInput(i);
-                    assignWitness(input, tree, arf.asf, nvtaMap, scr);
+//                    assignWitness(input, tree, arf.asf, nvtaMap, scr);
+                    assignWitness(input, tree, arf.asf, scr);
                 }
             }
         }

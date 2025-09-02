@@ -118,12 +118,12 @@ public class Actor {
      * @param vtxs
      * @return
      */
-    public Map<Sha256Hash, byte[]> signStack(AppTest2.ArkVirtualTransactionStack vtxs) {
+    public AppTest2.SignatureMap signStack(AppTest2.ArkVirtualTransactionStack vtxs) {
 
         Map<Sha256Hash, Transaction> transactionMap = new HashMap<>();
         Transaction root = Transaction.read(ByteBuffer.wrap(vtxs.root));
         transactionMap.put(root.getTxId(), root);
-        Map<Sha256Hash, byte[]> sigMap = new HashMap<>();
+        AppTest2.SignatureMap sigMap = new AppTest2.SignatureMap();
 
         for (AppTest2.ArkVirtualTransactionNode node : vtxs.nodes) {
             Transaction t = Transaction.read(ByteBuffer.wrap(node.transaction));
