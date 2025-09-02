@@ -13,8 +13,7 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 
 public class ArkUser extends Actor {
-    ArkScriptFactory asf;
-//AppTest2.ArkTree tree;
+    //AppTest2.ArkTree tree;
     Collection<TransactionOutput> unspentVTXOs;
 
     public ArkUser(NetworkParameters params) {

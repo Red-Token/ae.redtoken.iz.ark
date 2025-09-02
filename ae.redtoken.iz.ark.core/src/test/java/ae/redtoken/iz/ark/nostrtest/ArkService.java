@@ -5,7 +5,6 @@ package ae.redtoken.iz.ark.nostrtest;
 import com.google.common.collect.Maps;
 import lombok.SneakyThrows;
 import org.bitcoinj.base.Coin;
-import org.bitcoinj.base.Sha256Hash;
 import org.bitcoinj.base.internal.ByteUtils;
 import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.ECKey;
@@ -16,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static ae.redtoken.iz.ark.nostrtest.AppTest2.assignWitness;
 import static ae.redtoken.iz.ark.nostrtest.AppTest2.setWitness;
 
 public class ArkService extends Actor {
@@ -62,22 +60,6 @@ public class ArkService extends Actor {
             return scr;
         }
 
-//        public void assignWitnessToTree(Map<ByteBuffer, AppTest2.NewVTXTreeAccept> nvtaMap, AppTest2.StartConfirmationRequest scr) {
-            public void assignWitnessToTree(AppTest2.StartConfirmationRequest scr) {
-            // The tree is updated based on the SCR and nvtaMap
-            for (Transaction node : tree.nodes.values()) {
-                // Filter out the root node
-                if (tree.roots.contains(node.getTxId()))
-                    continue;
-
-                for (int i = 0; i < node.getInputs().size() - 1; i++) {
-                    TransactionInput input = node.getInput(i);
-//                    assignWitness(input, tree, arf.asf, nvtaMap, scr);
-                    assignWitness(input, tree, arf.asf, scr);
-                }
-            }
-        }
-
         //        Collection<AppTest2.StartAccept> startAccepts;
         Map<ByteBuffer, AppTest2.StartAccept> saMap = new HashMap<>();
 
@@ -111,6 +93,7 @@ public class ArkService extends Actor {
             aorMap.put(pubKey, aor);
         }
     }
+
 
     public ArkService(NetworkParameters params) {
         super(params);

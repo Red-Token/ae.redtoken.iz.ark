@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static ae.redtoken.iz.ark.nostrtest.AppTest2.assignWitness;
+
 public class Actor {
 
     WalletAppKit kit;
@@ -28,6 +30,7 @@ public class Actor {
     ECKey activeKey;
 
     ArkTree tree;
+    ArkScriptFactory asf;
 
     Actor(NetworkParameters params) {
 //            RegTestParams params = RegTestParams.get();
@@ -166,5 +169,19 @@ public class Actor {
         TransactionSignature ts = TransactionSignature.decodeFromBitcoin(witnessSignatureBytes, false, false);
         TransactionWitness witness = TransactionWitness.redeemP2WPKH(ts, activeKey);
         return witness.serialize();
+    }
+
+    public void assignWitnessToTree(AppTest2.StartConfirmationRequest scr) {
+        // The tree is updated based on the SCR and nvtaMap
+        for (Transaction node : tree.nodes.values()) {
+            // Filter out the root node
+            if (tree.roots.contains(node.getTxId()))
+                continue;
+
+            for (int i = 0; i < node.getInputs().size() - 1; i++) {
+                TransactionInput input = node.getInput(i);
+                assignWitness(input, tree, asf, scr);
+            }
+        }
     }
 }

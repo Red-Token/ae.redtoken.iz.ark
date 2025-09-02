@@ -340,7 +340,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
         // This map contains transaction and the lock in binary form based on the txid.
         void on(ArkRoundVTXTreeProposal proposal) {
-            ArkTree tree = new ArkTree(proposal);
+            tree = new ArkTree(proposal);
 
             ///  Each user goes over the proposal
             // TODO: THIS IS VERY BAD and WOULD FAIL IF THERE IS MORE THAN ONE LEAF
@@ -370,6 +370,8 @@ public class AppTest2 extends LTBCMainTestCase {
         StartAccept sa;
 
         public void on(StartConfirmationRequest scr) {
+            assignWitnessToTree(scr);
+
             Transaction rootTx = Transaction.read(ByteBuffer.wrap(scr.rootTx));
             Map<TransactionOutPoint, byte[]> witnessMap = Maps.newHashMap();
 
@@ -495,6 +497,7 @@ public class AppTest2 extends LTBCMainTestCase {
         final ArkScriptFactory asf = new ArkScriptFactory(seqLockBlocks, timeLockBlocks, keyS.getPubKey());
 
         Arrays.stream(users).forEach(user -> user.asf = asf);
+        arkService.asf = asf;
 
         // Start the ARK
         /**
