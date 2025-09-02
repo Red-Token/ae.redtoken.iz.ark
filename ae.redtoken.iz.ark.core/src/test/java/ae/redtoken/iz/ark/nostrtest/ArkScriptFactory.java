@@ -198,11 +198,11 @@ public class ArkScriptFactory {
         return userSignatures.toArray(new byte[0][]);
     }
 
-    public List<byte[]> extractPrimaryUnlockKeyHashesFromVTXO(byte[] program) {
-        return extractPrimaryUnlockKeyHashesFromVTXO(Script.parse(program));
+    public List<byte[]> extractPrimaryUnlockPublicKeysFromVTXO(byte[] program) {
+        return extractPrimaryUnlockPublicKeysFromVTXO(Script.parse(program));
     }
 
-    public List<byte[]> extractPrimaryUnlockKeyHashesFromVTXO(Script unlockScript) {
+    public List<byte[]> extractPrimaryUnlockPublicKeysFromVTXO(Script unlockScript) {
         List<byte[]> userSignatures = Lists.newArrayList();
 
         for (int i = 0; unlockScript.chunks().get(i).opcode != ScriptOpCodes.OP_CHECKSIG; i += 2) {

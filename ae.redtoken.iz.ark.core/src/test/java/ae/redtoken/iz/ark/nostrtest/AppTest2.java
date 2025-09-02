@@ -17,7 +17,6 @@ import nostr.event.impl.GenericEvent;
 import org.bitcoin.tfw.ltbc.tc.LTBCMainTestCase;
 import org.bitcoinj.base.Coin;
 import org.bitcoinj.base.Sha256Hash;
-import org.bitcoinj.base.internal.ByteUtils;
 import org.bitcoinj.core.*;
 import org.bitcoinj.core.listeners.NewBestBlockListener;
 import org.bitcoinj.crypto.ECKey;
@@ -387,44 +386,37 @@ public class AppTest2 extends LTBCMainTestCase {
         }
     }
 
-    //    static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, Map<Sha256Hash, byte[]>> signedStackMap, Map<Sha256Hash, byte[]> arkServiceSignatures) {
     public static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, StartConfirmationRequest scr) {
-//    public static void assignWitness(TransactionInput ti, ArkTree tree, ArkScriptFactory asf, Map<ByteBuffer, NewVTXTreeAccept> acceptMap, StartConfirmationRequest scr) {
 
         // first we select the output
-        Script outputScript = Script.parse(Objects.requireNonNull(ti.getConnectedOutput()).getScriptBytes());
+        TransactionOutput connectedOutput = tree.getOutput(ti.getOutpoint());
 
-        // from here we get the program hash
-        Sha256Hash programHash = Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(outputScript));
+        // Then we get the outputScript, that is a P2SH
+        Script outputScript = Script.parse(connectedOutput.getScriptBytes());
 
-        // get the program from the locks
-        byte[] program = tree.locks.get(programHash);
+        // from here we get the unlock hash
+        Sha256Hash unlockHash = Sha256Hash.wrap(ScriptPattern.extractHashFromP2SH(outputScript));
 
-        List<byte[]> unlockKeyHashes = asf.extractPrimaryUnlockKeyHashesFromVTXO(program);
+        // get the unlockScript from the locks
+        byte[] unlockScriptBytes = tree.locks.get(unlockHash);
 
-        // decode the program to get the pubkeys needed
-        byte[][] userKeys = asf.extractUserHashesFromVTXO(program);
-//        byte[] serviceKey = asf.extractServiceHashFromVTXO(program);
-
-//        byte[] serviceKey = unlockKeyHashes.removeLast();
+        List<ECKey> unlockPublicKeys = asf.extractPrimaryUnlockPublicKeysFromVTXO(unlockScriptBytes)
+                .stream().map(ECKey::fromPublicOnly).toList();
 
         // create the list of user signatures
-        List<byte[]> userSignatures = Lists.newArrayList();
+        List<byte[]> signatures = Lists.newArrayList();
 
-//        for (byte[] userKey : userKeys) {
-        for (byte[] userKey : unlockKeyHashes) {
-            String userKeyString = ByteUtils.formatHex(userKey);
-            byte[] signature = scr.arkServiceSignatures.get(userKeyString).get(programHash);
-            userSignatures.addFirst(signature);
+        for (ECKey unlockPublicKey : unlockPublicKeys) {
+            byte[] signature = scr.arkServiceSignatures.get(unlockPublicKey.getPublicKeyAsHex()).get(unlockHash);
+            signatures.addFirst(signature);
         }
 
-        byte[][] userSigs = userSignatures.toArray(new byte[userSignatures.size()][]);
+        byte[][] userSigs = signatures.toArray(new byte[signatures.size()][]);
 
         // create the witness
         TransactionWitness witness = ArkScriptFactory.createVTXONodeUnlockWitnessScript(
                 userSigs,
-//                scr.arkServiceSignatures.get(ByteUtils.formatHex(serviceKey)).get(programHash),
-                program);
+                unlockScriptBytes);
 
         // assign it to the input
         setWitness(ti, witness);
