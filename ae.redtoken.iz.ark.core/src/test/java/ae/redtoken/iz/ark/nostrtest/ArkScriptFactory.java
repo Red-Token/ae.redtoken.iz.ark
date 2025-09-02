@@ -187,17 +187,6 @@ public class ArkScriptFactory {
         return witness;
     }
 
-    public byte[][] extractUserHashesFromVTXO(byte[] program) {
-        Script programScript = Script.parse(program);
-        List<byte[]> userSignatures = Lists.newArrayList();
-
-        for (int i = 0; programScript.chunks().get(i + 2).opcode != ScriptOpCodes.OP_CHECKSIG; i += 2) {
-            userSignatures.add(programScript.chunks().get(i + 1).data);
-        }
-
-        return userSignatures.toArray(new byte[0][]);
-    }
-
     public List<byte[]> extractPrimaryUnlockPublicKeysFromVTXO(byte[] program) {
         return extractPrimaryUnlockPublicKeysFromVTXO(Script.parse(program));
     }
@@ -210,18 +199,5 @@ public class ArkScriptFactory {
         }
 
         return userSignatures;
-    }
-
-
-    public byte[] extractServiceHashFromVTXO(byte[] program) {
-        Script programScript = Script.parse(program);
-
-        byte[] serviceHash = null;
-
-        for (int i = 0; programScript.chunks().get(i).opcode != ScriptOpCodes.OP_CHECKSIG; i += 2) {
-            serviceHash = programScript.chunks().get(i + 1).data;
-        }
-
-        return serviceHash;
     }
 }

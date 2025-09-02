@@ -325,7 +325,6 @@ public class AppTest2 extends LTBCMainTestCase {
         List<ArkOnboardingAsset> assets;
 
         //Hack2
-//        Map<ByteBuffer, NewVTXTreeAccept> nvtaMap = new HashMap<>();
         NewVTXTreeAccept accept;
 
 
@@ -349,7 +348,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
             for (ArkLeaf leaf : tree.leafs.stream().filter(
                     leaf -> Arrays.equals(getActivePublicKey(),
-                            asf.extractUserHashesFromVTXO(tree.getLock(new TransactionOutPoint(leaf.index(), leaf.hash())))[0])).toList()) {
+                            asf.extractPrimaryUnlockPublicKeysFromVTXO(tree.getLock(new TransactionOutPoint(leaf.index(), leaf.hash()))).getFirst())).toList()) {
                 for (Transaction transaction = tree.nodes.get(leaf.hash());
                      !(tree.roots.contains(transaction.getTxId()) || signatureRequestMap.containsKey(transaction.getTxId()));
                      transaction = tree.nodes.get(transaction.getInput(0).getOutpoint().hash())) {
