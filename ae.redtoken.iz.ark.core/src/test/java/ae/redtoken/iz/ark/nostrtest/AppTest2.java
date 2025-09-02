@@ -625,7 +625,6 @@ public class AppTest2 extends LTBCMainTestCase {
 
             arkService.on(ByteBuffer.wrap(alice.getActivePublicKey()), acer);
 
-
             // Collaborative exit
             // Agreed exit for A
             // this is a hashmap of the txid and the corresponding transaction
@@ -639,7 +638,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
             // Connect the input
             TransactionInput ti_1_1_1 = vtx1_1_1.addInput(output);
-            fund(vtx1_1_1, arkService);
+            fund(vtx1_1_1, alice);
 
             // Lets rool!
             byte[] rs1_1_1 = tree.locks.get(Sha256Hash.of(asf.createVTXOLeafScript(alice.getActivePublicKey()).program()));
@@ -678,7 +677,6 @@ public class AppTest2 extends LTBCMainTestCase {
             List<Transaction> tl = new ArrayList<>();
 
             tl.addFirst(vtx1_1_1);
-
 
             TransactionOutput leaf = alice.unspentVTXOs.stream().findFirst().orElseThrow();
 
@@ -840,8 +838,9 @@ public class AppTest2 extends LTBCMainTestCase {
         // Add the funding input, post transaction signature
         TransactionOutput output = actor.kit.wallet().getUnspents().stream().filter(transactionOutput -> transactionOutput.getValue().equals(Coin.valueOf(0, 1)) && transactionOutput.isAvailableForSpending()).findFirst().orElseThrow();
         TransactionInput fti1 = tx.addInput(output);
-        output.markAsSpent(fti1);
-        tx.replaceInput(fti1.getIndex(), actor.signSpendingInput(fti1));
+        TransactionInput sti = actor.signSpendingInput(fti1);
+        tx.replaceInput(fti1.getIndex(), sti);
+        output.markAsSpent(sti);
     }
 
     static class TransactionVerifingNewBestBlockListener implements NewBestBlockListener {
