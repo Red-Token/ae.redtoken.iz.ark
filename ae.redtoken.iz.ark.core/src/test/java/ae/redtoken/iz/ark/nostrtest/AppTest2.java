@@ -400,15 +400,19 @@ public class AppTest2 extends LTBCMainTestCase {
         // get the program from the locks
         byte[] program = tree.locks.get(programHash);
 
+        List<byte[]> unlockKeyHashes = asf.extractPrimaryUnlockKeyHashesFromVTXO(program);
+
         // decode the program to get the pubkeys needed
         byte[][] userKeys = asf.extractUserHashesFromVTXO(program);
+//        byte[] serviceKey = asf.extractServiceHashFromVTXO(program);
 
-        byte[] serviceKey = asf.extractServiceHashFromVTXO(program);
+        byte[] serviceKey = unlockKeyHashes.removeLast();
 
         // create the list of user signatures
         List<byte[]> userSignatures = Lists.newArrayList();
 
-        for (byte[] userKey : userKeys) {
+//        for (byte[] userKey : userKeys) {
+        for (byte[] userKey : unlockKeyHashes) {
             String userKeyString = ByteUtils.formatHex(userKey);
             byte[] signature = scr.arkServiceSignatures.get(userKeyString).get(programHash);
             userSignatures.addFirst(signature);
