@@ -36,6 +36,11 @@ public class TestNostr {
             super(sender, kind, tags, content);
         }
 
+        public NIP0666Event(PublicKey sender, int kind, List<BaseTag> tags, String content) {
+            super(sender, kind, tags, content);
+        }
+
+
         public NIP0666Event(GenericEvent event) {
             super(event.getPubKey(), event.getKind(), event.getTags(), event.getContent());
             this.setSignature(event.getSignature());

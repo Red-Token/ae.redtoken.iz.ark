@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 
 public class ArkUser extends Actor {
+
     //AppTest2.ArkTree tree;
     Collection<TransactionOutput> unspentVTXOs;
 

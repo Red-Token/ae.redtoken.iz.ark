@@ -19,7 +19,7 @@ public class ArkService extends Actor {
 
     public AppTest2.ArkCollaborativeExitAccept acec;
 
-    public class StatefulRoundWizard {
+    public class StatefulRoundWizard extends AbstractWizard {
         private final AppTest2.ArkRoundFactory arf;
 
         public StatefulRoundWizard(AppTest2.ArkRoundFactory arf) {

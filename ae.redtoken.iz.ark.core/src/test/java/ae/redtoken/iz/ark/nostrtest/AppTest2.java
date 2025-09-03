@@ -328,6 +328,20 @@ public class AppTest2 extends LTBCMainTestCase {
 
     static class ArkInitiator extends ArkUser {
 
+        class RoundStartWizard extends AbstractWizard {
+            private ArkOnboardingRequest aor;
+            private NewVTXTreeAccept accept;
+
+            public void on(ArkRoundInitiate arkRoundInitiate) {
+                this.aor = new ArkOnboardingRequest(getActivePublicKey(), assets);
+            }
+
+            public void on(ArkRoundVTXTreeProposal proposal) {
+                ArkInitiator.this.on(proposal);
+                this.accept = ArkInitiator.this.accept;
+            }
+        }
+
         class CollaborativeExitWizard {
 
             Transaction vtx1_1_1;
@@ -669,25 +683,80 @@ public class AppTest2 extends LTBCMainTestCase {
             /// START
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10).getValue());
 
-            for (ArkInitiator initiator : initiators) {
-                String message = om.writeValueAsString(ari);
+            Collection<ArkInitiator.RoundStartWizard> rsws = initiators.stream().map(arkInitiator -> arkInitiator.new RoundStartWizard()).toList();
 
+            rw.send(Kind.ARK_ROUND_INITIATE, List.of(), om.writeValueAsString(ari));
 
-                System.out.println(message);
-                initiator.on(om.readValue(message, ArkRoundInitiate.class));
-                rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.aor);
+            Thread.sleep(1000);
+            System.out.println("sdfsfsdfsd");
+
+            for (ArkInitiator.RoundStartWizard rsw : rsws) {
+                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_INITIATE).take();
+                rsw.on(om.readValue(e.getContent(), ArkRoundInitiate.class));
+                rsw.send(Kind.ARK_ROUND_ONBOARDING_REQUEST, List.of(), om.writeValueAsString(rsw.aor));
             }
+
+            Thread.sleep(1000);
+
+            for (TestNostr.NIP0666Event e : rw.events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST)) {
+                // This is a bit of a trick we have to map
+                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
+                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
+                        .map(Actor::getActivePublicKey)
+                        .findFirst()
+                        .orElseThrow());
+
+
+                rw.on(key, om.readValue(e.getContent(), ArkOnboardingRequest.class));
+            }
+
+//            for (ArkInitiator initiator : initiators) {
+//                String message = om.writeValueAsString(ari);
+//
+//
+//                System.out.println(message);
+//                initiator.on(om.readValue(message, ArkRoundInitiate.class));
+//                rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.aor);
+//            }
 
             /// Send it out for a review
             ArkRoundVTXTreeProposal proposal = rw.createProposal();
 
-            //The response
-            for (ArkInitiator initiator : initiators) {
-                String message = om.writeValueAsString(proposal);
-                System.out.println(message);
-                initiator.on(om.readValue(message, ArkRoundVTXTreeProposal.class));
-                rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.accept);
+            rw.send(Kind.ARK_ROUND_PROPOSAL, List.of(), om.writeValueAsString(proposal));
+
+            /// Accept stuff!
+            for (ArkInitiator.RoundStartWizard rsw : rsws) {
+                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_PROPOSAL).take();
+                rsw.on(om.readValue(e.getContent(), ArkRoundVTXTreeProposal.class));
+                rsw.send(Kind.ARK_ROUND_PROPOSAL_ACCEPT, List.of(), om.writeValueAsString(rsw.accept));
             }
+
+            Thread.sleep(1000);
+
+            Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).size());
+
+            for (TestNostr.NIP0666Event e : rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT)) {
+                // This is a bit of a trick we have to map
+                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
+                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
+                        .map(Actor::getActivePublicKey)
+                        .findFirst()
+                        .orElseThrow());
+
+                rw.on(key, om.readValue(e.getContent(), NewVTXTreeAccept.class));
+            }
+
+
+//            Thread.sleep(1000);
+
+
+//            //The response
+//            for (ArkInitiator initiator : initiators) {
+//                String message = om.writeValueAsString(proposal);
+//                System.out.println(message);
+//                initiator.on(om.readValue(message, ArkRoundVTXTreeProposal.class));
+//                rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.accept);
+//            }
 
             /// Create the start signal
             ArkRoundStartConfirmationRequest scr = rw.createStartConfirmationRequest();
