@@ -76,7 +76,7 @@ public class AppTest2 extends LTBCMainTestCase {
     public record ArkRoundStartConfirmationRequest(byte[] rootTx, UserSignaturesMap arkServiceSignatures) {
     }
 
-    public record ArkRoundStartAccept(Map<TransactionOutPoint, byte[]> witnessMap) {
+    public record ArkRoundStartAccept(Map<String, byte[]> witnessMap) {
     }
 
     public record ArkCollaborativeExitRequest(byte[] transaction, byte[] counterpartSignature) {
@@ -331,6 +331,7 @@ public class AppTest2 extends LTBCMainTestCase {
         class RoundStartWizard extends AbstractWizard {
             private ArkOnboardingRequest aor;
             private NewVTXTreeAccept accept;
+            private ArkRoundStartAccept sa;
 
             public void on(ArkRoundInitiate arkRoundInitiate) {
                 this.aor = new ArkOnboardingRequest(getActivePublicKey(), assets);
@@ -340,6 +341,12 @@ public class AppTest2 extends LTBCMainTestCase {
                 ArkInitiator.this.on(proposal);
                 this.accept = ArkInitiator.this.accept;
             }
+
+            public void on(ArkRoundStartConfirmationRequest scr) {
+                ArkInitiator.this.on(scr);
+                this.sa = ArkInitiator.this.sa;
+            }
+
         }
 
         class CollaborativeExitWizard {
@@ -462,14 +469,14 @@ public class AppTest2 extends LTBCMainTestCase {
             assignWitnessToTree(scr);
 
             Transaction rootTx = Transaction.read(ByteBuffer.wrap(scr.rootTx));
-            Map<TransactionOutPoint, byte[]> witnessMap = Maps.newHashMap();
+            Map<String, byte[]> witnessMap = Maps.newHashMap();
 
             //TODO: bit of a hack I guess we could also keept track of this
             for (ArkOnboardingAsset asset : assets) {
                 TransactionOutPoint outPoint = new TransactionOutPoint(asset.index(), asset.hash());
                 TransactionInput input = rootTx.getInputs().stream().filter(transactionInput -> transactionInput.getOutpoint().equals(outPoint)).findFirst().orElseThrow();
                 byte[] witnessBytes = createP2WPKHWitness(scr.rootTx, input.getIndex(), Coin.valueOf(asset.value));
-                witnessMap.put(input.getOutpoint(), witnessBytes);
+                witnessMap.put(input.getOutpoint().toString(), witnessBytes);
             }
 
             sa = new ArkRoundStartAccept(witnessMap);
@@ -710,15 +717,6 @@ public class AppTest2 extends LTBCMainTestCase {
                 rw.on(key, om.readValue(e.getContent(), ArkOnboardingRequest.class));
             }
 
-//            for (ArkInitiator initiator : initiators) {
-//                String message = om.writeValueAsString(ari);
-//
-//
-//                System.out.println(message);
-//                initiator.on(om.readValue(message, ArkRoundInitiate.class));
-//                rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.aor);
-//            }
-
             /// Send it out for a review
             ArkRoundVTXTreeProposal proposal = rw.createProposal();
 
@@ -732,7 +730,6 @@ public class AppTest2 extends LTBCMainTestCase {
             }
 
             Thread.sleep(1000);
-
             Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).size());
 
             for (TestNostr.NIP0666Event e : rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT)) {
@@ -746,27 +743,29 @@ public class AppTest2 extends LTBCMainTestCase {
                 rw.on(key, om.readValue(e.getContent(), NewVTXTreeAccept.class));
             }
 
-
-//            Thread.sleep(1000);
-
-
-//            //The response
-//            for (ArkInitiator initiator : initiators) {
-//                String message = om.writeValueAsString(proposal);
-//                System.out.println(message);
-//                initiator.on(om.readValue(message, ArkRoundVTXTreeProposal.class));
-//                rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.accept);
-//            }
-
             /// Create the start signal
             ArkRoundStartConfirmationRequest scr = rw.createStartConfirmationRequest();
+            rw.send(Kind.ARK_ROUND_READY_FOR_START, List.of(), om.writeValueAsString(scr));
 
             /// Sign the root
-            for (ArkInitiator initiator : initiators) {
-                String message = om.writeValueAsString(scr);
-                System.out.println(message);
-                initiator.on(om.readValue(message, ArkRoundStartConfirmationRequest.class));
-                rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.sa);
+            for (ArkInitiator.RoundStartWizard rsw : rsws) {
+                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_READY_FOR_START).take();
+                rsw.on(om.readValue(e.getContent(), ArkRoundStartConfirmationRequest.class));
+                rsw.send(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED, List.of(), om.writeValueAsString(rsw.sa));
+            }
+
+            Thread.sleep(1000);
+            Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).size());
+
+            for (TestNostr.NIP0666Event e : rw.events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED)) {
+                // This is a bit of a trick we have to map
+                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
+                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
+                        .map(Actor::getActivePublicKey)
+                        .findFirst()
+                        .orElseThrow());
+
+                rw.on(key, om.readValue(e.getContent(), ArkRoundStartAccept.class));
             }
 
             Transaction rootTx = rw.createRootTx();

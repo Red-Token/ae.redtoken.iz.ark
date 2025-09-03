@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import static ae.redtoken.iz.ark.nostrtest.AppTest2.setWitness;
+import static ae.redtoken.iz.ark.nostrtest.TestMessages.fromString;
 
 public class ArkService extends Actor {
 
@@ -68,9 +69,10 @@ public class ArkService extends Actor {
             // Update the witness for the rootTx based on the SA
             for (AppTest2.ArkRoundStartAccept sa : saMap.values()) {
                 // Go over the response and update the witness
-                for (TransactionOutPoint top : sa.witnessMap().keySet()) {
+                for (String tops : sa.witnessMap().keySet()) {
+                    TransactionOutPoint top = fromString(tops);
                     TransactionInput ti = rootTx.getInputs().stream().filter(input -> input.getOutpoint().equals(top)).findFirst().orElseThrow();
-                    setWitness(ti, TransactionWitness.read(ByteBuffer.wrap(sa.witnessMap().get(top))));
+                    setWitness(ti, TransactionWitness.read(ByteBuffer.wrap(sa.witnessMap().get(top.toString()))));
                 }
             }
 
