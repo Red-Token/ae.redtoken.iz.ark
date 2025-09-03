@@ -167,7 +167,8 @@ public class AppTest2 extends LTBCMainTestCase {
 
             for (ArkOnboardingRequest request : requests) {
                 ArkOnboardingAsset arkOnboardingAsset = request.assets.stream().findFirst().orElseThrow();
-                TransactionInput rootTi = rootTx.addInput(arkOnboardingAsset.output);
+                TransactionInput rootTi = new TransactionInput(rootTx, new byte[0], arkOnboardingAsset.output.getOutPointFor());
+                rootTx.addInput(arkOnboardingAsset.output);
 
                 // TODO here we mark the output as spent
                 arkOnboardingAsset.output.markAsSpent(rootTi);
@@ -373,7 +374,6 @@ public class AppTest2 extends LTBCMainTestCase {
                 }
 
                 // Now we can fold the tent
-
 
 
                 tl.addFirst(vtx1_1_1);
@@ -615,7 +615,8 @@ public class AppTest2 extends LTBCMainTestCase {
 //                for (ArkInitiator initiator : List.of(alice, bob, carol, david)) {
                 for (ArkInitiator initiator : List.of(alice, bob, carol, david)) {
                     Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(initiator.activeKey);
-                    initiator.assets = List.of(new ArkOnboardingAsset(arkFundingTx.addOutput(Coin.valueOf(1, 0), arkFundingLockScript)));
+                    TransactionOutput output = arkFundingTx.addOutput(Coin.valueOf(1, 0), arkFundingLockScript);
+                    initiator.assets = List.of(new ArkOnboardingAsset(output));
                     initiators.add(initiator);
                 }
 
