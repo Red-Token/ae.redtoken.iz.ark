@@ -398,7 +398,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
         //Hack
         ArkOnboardingRequest aor;
-        List<ArkOnboardingAsset> assets;
+        List<ArkOnboardingAsset> assets = new LinkedList<>();
 
         //Hack2
         NewVTXTreeAccept accept;
@@ -612,18 +612,28 @@ public class AppTest2 extends LTBCMainTestCase {
                 Transaction arkFundingTx = new Transaction();
                 arkFundingTx.setVersion(2);
 
+                // since we cant do and output untill all of the transaction is done we have to use a patchMap
+                Map<TransactionOutput, ArkInitiator> patchMap = new HashMap<>();
+
                 // This is the output that is used to FUND the rootNode (the fundingInput in the rootNode takes its capital from here
 //                for (ArkInitiator initiator : List.of(alice, bob, carol, david)) {
                 for (ArkInitiator initiator : List.of(alice, bob, carol, david)) {
                     Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(initiator.activeKey);
                     TransactionOutput output = arkFundingTx.addOutput(Coin.valueOf(1, 0), arkFundingLockScript);
-                    initiator.assets = List.of(new ArkOnboardingAsset(output, output.getParentTransactionHash(), output.getIndex(), output.getValue().value));
+                    patchMap.put(output, initiator);
+//                    initiator.assets = List.of(new ArkOnboardingAsset(output, output.getParentTransactionHash(), output.getIndex(), output.getValue().value));
                     initiators.add(initiator);
                 }
 
                 SendRequest sr = SendRequest.forTx(arkFundingTx);
                 sr.feePerKb = Coin.valueOf(1000);
                 arkService.kit.wallet().completeTx(sr);
+
+                patchMap.forEach((output, initiator) -> {
+                    ArkOnboardingAsset asset = new ArkOnboardingAsset(output, output.getParentTransactionHash(), output.getIndex(), output.getValue().value);
+                    initiator.assets.add(asset);
+//                    Assertions.assertEquals(asset.hash, asset.output.getParentTransactionHash());
+                });
 
                 // Send it out
                 sendAndVerify(sr.tx, arkService, alice);
