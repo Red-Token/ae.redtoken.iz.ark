@@ -65,7 +65,7 @@ public class AppTest2 extends LTBCMainTestCase {
     public record ArkRoundInitiate(long minValue) {
     }
 
-    public record ArkOnboardingAsset(TransactionOutput output, Sha256Hash hash, long index, long value) {
+    public record ArkOnboardingAsset(Sha256Hash hash, long index, long value) {
     }
 
     public record ArkOnboardingRequest(byte[] key, List<ArkOnboardingAsset> assets) {
@@ -147,7 +147,7 @@ public class AppTest2 extends LTBCMainTestCase {
         void createArkTree(ArkTree tree, List<ArkOnboardingRequest> requests) {
             List<FoundingMember> members = requests.stream().map(arkOnboardingRequest ->
                     new FoundingMember(
-                            arkOnboardingRequest.assets.stream().findFirst().orElseThrow().output.getValue(),
+                            Coin.valueOf(arkOnboardingRequest.assets.stream().findFirst().orElseThrow().value),
                             arkOnboardingRequest.key)).toList();
 
 //            List<TransactionOutput> fundingOutputs
@@ -167,12 +167,12 @@ public class AppTest2 extends LTBCMainTestCase {
 
             for (ArkOnboardingRequest request : requests) {
                 ArkOnboardingAsset arkOnboardingAsset = request.assets.stream().findFirst().orElseThrow();
-                TransactionOutPoint top = new TransactionOutPoint(arkOnboardingAsset.output().getOutPointFor().index(), arkOnboardingAsset.output.getOutPointFor().hash());
-                TransactionInput rootTi = new TransactionInput(rootTx, new byte[0], top, arkOnboardingAsset.output.getValue());
+                TransactionOutPoint top = new TransactionOutPoint(arkOnboardingAsset.index(), arkOnboardingAsset.hash());
+                TransactionInput rootTi = new TransactionInput(rootTx, new byte[0], top, Coin.valueOf(arkOnboardingAsset.value));
                 rootTx.addInput(rootTi);
 
                 // TODO here we mark the output as spent
-                arkOnboardingAsset.output.markAsSpent(rootTi);
+//                arkOnboardingAsset.output.markAsSpent(rootTi);
             }
 
             // Add a feeInput to transaction.
@@ -453,9 +453,9 @@ public class AppTest2 extends LTBCMainTestCase {
 
             //TODO: bit of a hack I guess we could also keept track of this
             for (ArkOnboardingAsset asset : assets) {
-                TransactionOutPoint outPoint = asset.output.getOutPointFor();
+                TransactionOutPoint outPoint = new TransactionOutPoint(asset.index(), asset.hash());
                 TransactionInput input = rootTx.getInputs().stream().filter(transactionInput -> transactionInput.getOutpoint().equals(outPoint)).findFirst().orElseThrow();
-                byte[] witnessBytes = createP2WPKHWitness(scr.rootTx, input.getIndex(), asset.output().getValue());
+                byte[] witnessBytes = createP2WPKHWitness(scr.rootTx, input.getIndex(), Coin.valueOf(asset.value));
                 witnessMap.put(input.getOutpoint(), witnessBytes);
             }
 
@@ -630,7 +630,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 arkService.kit.wallet().completeTx(sr);
 
                 patchMap.forEach((output, initiator) -> {
-                    ArkOnboardingAsset asset = new ArkOnboardingAsset(output, output.getParentTransactionHash(), output.getIndex(), output.getValue().value);
+                    ArkOnboardingAsset asset = new ArkOnboardingAsset(output.getParentTransactionHash(), output.getIndex(), output.getValue().value);
                     initiator.assets.add(asset);
 //                    Assertions.assertEquals(asset.hash, asset.output.getParentTransactionHash());
                 });
