@@ -680,8 +680,6 @@ public class AppTest2 extends LTBCMainTestCase {
             sendAndVerify(rootTx, arkService, alice);
 
             ///  The ARK Round is deposit
-            ArkTree tree = arkService.tree;
-
             alice.startRound();
             bob.startRound();
             carol.startRound();

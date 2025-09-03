@@ -1,6 +1,9 @@
 package ae.redtoken.iz.ark.nostrtest;
 
 import lombok.SneakyThrows;
+import nostr.event.Kind;
+import nostr.event.impl.Filters;
+import nostr.event.impl.GenericEvent;
 import nostr.id.Identity;
 import org.bitcoinj.base.Coin;
 import org.bitcoinj.base.ScriptType;
@@ -21,10 +24,61 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 import static ae.redtoken.iz.ark.nostrtest.AppTest2.assignWitness;
+import static ae.redtoken.iz.ark.nostrtest.TestNostr.RELAYS;
 
 public class Actor {
+
+    abstract class AbstractWizard {
+
+        TestNostr.NIP0666<TestNostr.NIP0666ArkQuotationEvent> nip0666Stack;
+
+
+        Map<Integer, BlockingQueue<GenericEvent>> events = new HashMap<>() {
+
+            @Override
+            public BlockingQueue<GenericEvent> get(Object key) {
+                if (!containsKey(key)) {
+                    put((Integer) key, new ArrayBlockingQueue<>(100));
+                }
+
+                return super.get(key);
+            }
+        };
+
+        void send(int zkind, String msg) {
+            TestNostr.NIP0666ArkQuotationEventFactory factory = new TestNostr.NIP0666ArkQuotationEventFactory(identity, msg);
+            nip0666Stack.setEvent(factory.create());
+            nip0666Stack.signAndSend();
+        }
+
+        public AbstractWizard() {
+            nip0666Stack = new TestNostr.NIP0666<>();
+            nip0666Stack.setSender(identity);
+            nip0666Stack.setRelays(RELAYS);
+
+            /**
+             *  Step 2: Alice scans the bitcoin URL and fetches the offer
+             */
+
+            String id = nip0666Stack.getEvent().getId();
+
+            GenericEvent ge = new GenericEvent();
+            ge.setId(id);
+            Filters filters2 = Filters.builder().events(List.of(ge)).kinds(List.of(Kind.ARK_QUOTATION)).build();
+            String subId2 = "sub_" + identity.getPublicKey();
+
+            EventCustomHandler2.handlers.put(subId2, (event, message, relay) -> {
+                events.get(0).add((GenericEvent) event);
+            });
+
+            nip0666Stack.send(filters2, subId2);
+        }
+    }
+
 
     WalletAppKit kit;
     Identity identity;
@@ -118,7 +172,8 @@ public class Actor {
     }
 
     /**
-     *  returns a map with the Sha256 of program mapped to the signature
+     * returns a map with the Sha256 of program mapped to the signature
+     *
      * @param vtxs
      * @return
      */

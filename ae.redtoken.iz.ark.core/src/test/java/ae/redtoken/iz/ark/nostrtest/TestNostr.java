@@ -20,6 +20,7 @@ import nostr.event.impl.TextNoteEvent;
 import nostr.id.Identity;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +62,6 @@ public class TestNostr {
             super(sender, content);
         }
 
-
         @Override
         public NIP0666Event create() {
             return new NIP0666Event(this.getSender(), Kind.ARK_REQUEST, this.getTags(), this.getContent());
@@ -73,9 +73,12 @@ public class TestNostr {
     static class NIP0666ArkQuotationEventFactory extends EventFactory<NIP0666Event> {
 
         public NIP0666ArkQuotationEventFactory(Identity sender, String content) {
-            super(sender, content);
+            super(sender, new ArrayList<>(), content);
         }
 
+        public NIP0666ArkQuotationEventFactory(Identity sender, List<BaseTag> tags, String content) {
+            super(sender, tags, content);
+        }
 
         @Override
         public NIP0666ArkQuotationEvent create() {
