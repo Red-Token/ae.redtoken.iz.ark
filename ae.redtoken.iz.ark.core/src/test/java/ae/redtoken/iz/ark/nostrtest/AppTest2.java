@@ -25,8 +25,10 @@ import org.bitcoinj.params.RegTestParams;
 import org.bitcoinj.script.*;
 import org.bitcoinj.wallet.SendRequest;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -57,9 +59,6 @@ public class AppTest2 extends LTBCMainTestCase {
         public void serialize(Sha256Hash value, JsonGenerator gen, SerializerProvider provider) throws IOException {
             gen.writeString(value.toString());
         }
-    }
-
-    record Initiator(ArkInitiator user) {
     }
 
     public record ArkRoundInitiate(long minValue) {
@@ -498,6 +497,18 @@ public class AppTest2 extends LTBCMainTestCase {
     }
 
 
+    @SneakyThrows
+    @BeforeEach
+    void setUp() {
+        Process process = Runtime.getRuntime().exec(new String[]{"./strfry", "delete", "--age", "0"}, new String[]{}, new File("/var/tmp/strfry"));
+
+        String in = new String(process.getInputStream().readAllBytes());
+        String err = new String(process.getErrorStream().readAllBytes());
+
+        System.out.println("in: " + in);
+        System.out.println("err: " + err);
+    }
+
     /**
      *
      * This is a simple scenario that creates a mini Sync-ARK with four users
@@ -517,6 +528,7 @@ public class AppTest2 extends LTBCMainTestCase {
      *
      * @throws Exception
      */
+
 
     @Test
     public void test2() throws Exception {
@@ -659,6 +671,8 @@ public class AppTest2 extends LTBCMainTestCase {
 
             for (ArkInitiator initiator : initiators) {
                 String message = om.writeValueAsString(ari);
+
+
                 System.out.println(message);
                 initiator.on(om.readValue(message, ArkRoundInitiate.class));
                 rw.on(ByteBuffer.wrap(initiator.getActivePublicKey()), initiator.aor);
