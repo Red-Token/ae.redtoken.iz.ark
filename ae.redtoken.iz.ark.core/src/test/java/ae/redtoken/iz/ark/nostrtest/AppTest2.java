@@ -167,7 +167,7 @@ public class AppTest2 extends LTBCMainTestCase {
 
             for (ArkOnboardingRequest request : requests) {
                 ArkOnboardingAsset arkOnboardingAsset = request.assets.stream().findFirst().orElseThrow();
-                TransactionOutPoint top = new TransactionOutPoint(arkOnboardingAsset.output.getOutPointFor().index(), arkOnboardingAsset.output.getOutPointFor().hash());
+                TransactionOutPoint top = new TransactionOutPoint(arkOnboardingAsset.index, arkOnboardingAsset.hash());
                 TransactionInput rootTi = new TransactionInput(rootTx, new byte[0], top, arkOnboardingAsset.output.getValue());
                 rootTx.addInput(arkOnboardingAsset.output);
 
