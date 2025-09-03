@@ -65,7 +65,7 @@ public class AppTest2 extends LTBCMainTestCase {
     public record ArkRoundInitiate(long minValue) {
     }
 
-    public record ArkOnboardingAsset(TransactionOutput output) {
+    public record ArkOnboardingAsset(TransactionOutput output, Sha256Hash hash, long index, long value) {
     }
 
     public record ArkOnboardingRequest(byte[] key, List<ArkOnboardingAsset> assets) {
@@ -167,7 +167,8 @@ public class AppTest2 extends LTBCMainTestCase {
 
             for (ArkOnboardingRequest request : requests) {
                 ArkOnboardingAsset arkOnboardingAsset = request.assets.stream().findFirst().orElseThrow();
-                TransactionInput rootTi = new TransactionInput(rootTx, new byte[0], arkOnboardingAsset.output.getOutPointFor());
+                TransactionOutPoint top = new TransactionOutPoint(arkOnboardingAsset.output.getOutPointFor().index(), arkOnboardingAsset.output.getOutPointFor().hash());
+                TransactionInput rootTi = new TransactionInput(rootTx, new byte[0], top, arkOnboardingAsset.output.getValue());
                 rootTx.addInput(arkOnboardingAsset.output);
 
                 // TODO here we mark the output as spent
@@ -616,7 +617,7 @@ public class AppTest2 extends LTBCMainTestCase {
                 for (ArkInitiator initiator : List.of(alice, bob, carol, david)) {
                     Script arkFundingLockScript = ScriptBuilder.createP2WPKHOutputScript(initiator.activeKey);
                     TransactionOutput output = arkFundingTx.addOutput(Coin.valueOf(1, 0), arkFundingLockScript);
-                    initiator.assets = List.of(new ArkOnboardingAsset(output));
+                    initiator.assets = List.of(new ArkOnboardingAsset(output, output.getParentTransactionHash(), output.getIndex(), output.getValue().value));
                     initiators.add(initiator);
                 }
 
