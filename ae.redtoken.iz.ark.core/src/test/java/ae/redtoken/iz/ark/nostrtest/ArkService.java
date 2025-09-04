@@ -114,10 +114,11 @@ public class ArkService extends Actor {
             Thread.sleep(1000);
             System.out.println("started, waiting for clients to arrive");
 
-            for (int i = 0; i < 4; i++) {
+            int size = events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).size();
+
+            for (int i = 0; i < size; i++) {
                 TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).take();
-                AppTest2.ArkOnboardingRequest request = om.readValue(e.getContent(), AppTest2.ArkOnboardingRequest.class);
-                on(e.getPubKey().toHexString(), request);
+                on(e.getPubKey().toHexString(), om.readValue(e.getContent(), AppTest2.ArkOnboardingRequest.class));
             }
 
             /// Send it out for a review
