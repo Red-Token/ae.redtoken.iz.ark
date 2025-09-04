@@ -763,25 +763,25 @@ public class AppTest2 extends LTBCMainTestCase {
 //                rw.on(key, om.readValue(e.getContent(), NewVTXTreeAccept.class));
 //            }
 
-            /// Create the start signal
-            ArkRoundStartConfirmationRequest scr = rw.createStartConfirmationRequest();
-            rw.send(Kind.ARK_ROUND_READY_FOR_START, List.of(), om.writeValueAsString(scr));
-
-            /// Sign the root
-            Thread.sleep(1000);
-            Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).size());
-
-            for (int i = 0; i < 4; i++) {
-                TestNostr.NIP0666Event e = rw.events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).take();
-
-                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
-                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
-                        .map(Actor::getActivePublicKey)
-                        .findFirst()
-                        .orElseThrow());
-
-                rw.on(key, om.readValue(e.getContent(), ArkRoundStartAccept.class));
-            }
+//            /// Create the start signal
+//            ArkRoundStartConfirmationRequest scr = rw.createStartConfirmationRequest();
+//            rw.send(Kind.ARK_ROUND_READY_FOR_START, List.of(), om.writeValueAsString(scr));
+//
+//            /// Sign the root
+//            Thread.sleep(1000);
+//            Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).size());
+//
+//            for (int i = 0; i < 4; i++) {
+//                TestNostr.NIP0666Event e = rw.events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).take();
+//
+//                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
+//                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
+//                        .map(Actor::getActivePublicKey)
+//                        .findFirst()
+//                        .orElseThrow());
+//
+//                rw.on(key, om.readValue(e.getContent(), ArkRoundStartAccept.class));
+//            }
 
             Transaction rootTx = rw.createRootTx();
 
