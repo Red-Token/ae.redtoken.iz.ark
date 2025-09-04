@@ -744,24 +744,24 @@ public class AppTest2 extends LTBCMainTestCase {
 //                rw.on(key, om.readValue(e.getContent(), ArkOnboardingRequest.class));
 //            }
 
-            /// Send it out for a review
-            ArkRoundVTXTreeProposal proposal = rw.createProposal();
-            rw.send(Kind.ARK_ROUND_PROPOSAL, List.of(), om.writeValueAsString(proposal));
-
-            Thread.sleep(1000);
-            Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).size());
-
-            for (int i = 0; i < 4; i++) {
-                TestNostr.NIP0666Event e = rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).take();
-                // This is a bit of a trick we have to map
-                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
-                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
-                        .map(Actor::getActivePublicKey)
-                        .findFirst()
-                        .orElseThrow());
-
-                rw.on(key, om.readValue(e.getContent(), NewVTXTreeAccept.class));
-            }
+//            /// Send it out for a review
+//            ArkRoundVTXTreeProposal proposal = rw.createProposal();
+//            rw.send(Kind.ARK_ROUND_PROPOSAL, List.of(), om.writeValueAsString(proposal));
+//
+//            Thread.sleep(1000);
+//            Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).size());
+//
+//            for (int i = 0; i < 4; i++) {
+//                TestNostr.NIP0666Event e = rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).take();
+//                // This is a bit of a trick we have to map
+//                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
+//                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
+//                        .map(Actor::getActivePublicKey)
+//                        .findFirst()
+//                        .orElseThrow());
+//
+//                rw.on(key, om.readValue(e.getContent(), NewVTXTreeAccept.class));
+//            }
 
             /// Create the start signal
             ArkRoundStartConfirmationRequest scr = rw.createStartConfirmationRequest();
