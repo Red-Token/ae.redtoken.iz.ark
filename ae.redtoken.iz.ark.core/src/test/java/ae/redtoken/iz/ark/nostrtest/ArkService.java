@@ -2,11 +2,15 @@ package ae.redtoken.iz.ark.nostrtest;
 
 //import ae.redtoken.iz.ark.nostrtest.Actor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Maps;
+import lombok.SneakyThrows;
+import nostr.event.Kind;
 import org.bitcoinj.base.Coin;
 import org.bitcoinj.base.internal.ByteUtils;
 import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.ECKey;
+import org.junit.jupiter.api.Assertions;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -20,11 +24,18 @@ public class ArkService extends Actor {
 
     public AppTest2.ArkCollaborativeExitAccept acec;
 
-    public class StatefulRoundWizard extends AbstractWizard {
+    public class StatefulRoundWizard extends AbstractWizard implements Runnable {
         private final AppTest2.ArkRoundFactory arf;
+        private final ObjectMapper om;
+        private final List<AppTest2.ArkInitiator> initiators;
+        Thread thread;
 
-        public StatefulRoundWizard(AppTest2.ArkRoundFactory arf) {
+        public StatefulRoundWizard(AppTest2.ArkRoundFactory arf, ObjectMapper om, List<AppTest2.ArkInitiator> initiators)  {
             this.arf = arf;
+            this.om = om;
+            this.initiators = initiators;
+
+            thread = new Thread(this);
         }
 
         public ArkRoundVTXTreeProposal createProposal() {
@@ -93,6 +104,34 @@ public class ArkService extends Actor {
 
         public void on(ByteBuffer pubKey, AppTest2.ArkOnboardingRequest aor) {
             aorMap.put(pubKey, aor);
+        }
+
+        @SneakyThrows
+        @Override
+        public void run() {
+            AppTest2.ArkRoundInitiate ari = new AppTest2.ArkRoundInitiate(Coin.valueOf(0, 10).getValue());
+            send(Kind.ARK_ROUND_INITIATE, List.of(), om.writeValueAsString(ari));
+
+            Thread.sleep(1000);
+            System.out.println("started, waiting for clients to arrive");
+
+            Thread.sleep(1000);
+            Assertions.assertEquals(4, events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).size());
+
+            for (int i = 0; i < 4; i++) {
+                TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).take();
+                // This is a bit of a trick we have to map
+                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
+                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
+                        .map(Actor::getActivePublicKey)
+                        .findFirst()
+                        .orElseThrow());
+
+
+                on(key, om.readValue(e.getContent(), AppTest2.ArkOnboardingRequest.class));
+            }
+
+
         }
     }
 

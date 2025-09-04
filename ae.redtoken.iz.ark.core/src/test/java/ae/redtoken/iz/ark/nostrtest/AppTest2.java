@@ -705,9 +705,6 @@ public class AppTest2 extends LTBCMainTestCase {
 
             /// Service create the tree
             arkService.tree = new ArkTree();
-//            arkService.tree.arkService = arkService;
-
-            ArkService.StatefulRoundWizard rw = arkService.new StatefulRoundWizard(arf);
 
             ObjectMapper om = new ObjectMapper();
 
@@ -719,30 +716,33 @@ public class AppTest2 extends LTBCMainTestCase {
             om.registerModule(module);
 
             /// START
-            ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10).getValue());
-
             Collection<ArkInitiator.RoundStartWizard> rsws = initiators.stream().map(arkInitiator -> arkInitiator.new RoundStartWizard(om)).toList();
 
-            rw.send(Kind.ARK_ROUND_INITIATE, List.of(), om.writeValueAsString(ari));
-
-            Thread.sleep(1000);
-            System.out.println("sdfsfsdfsd");
-
-            Thread.sleep(1000);
-            Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).size());
-
-            for (int i = 0; i < 4; i++) {
-                TestNostr.NIP0666Event e = rw.events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).take();
-                // This is a bit of a trick we have to map
-                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
-                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
-                        .map(Actor::getActivePublicKey)
-                        .findFirst()
-                        .orElseThrow());
+            ArkService.StatefulRoundWizard rw = arkService.new StatefulRoundWizard(arf, om, initiators);
+            rw.thread.start();
+            rw.thread.join();
 
 
-                rw.on(key, om.readValue(e.getContent(), ArkOnboardingRequest.class));
-            }
+//            rw.send(Kind.ARK_ROUND_INITIATE, List.of(), om.writeValueAsString(ari));
+//
+//            Thread.sleep(1000);
+//            System.out.println("sdfsfsdfsd");
+
+//            Thread.sleep(1000);
+//            Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).size());
+//
+//            for (int i = 0; i < 4; i++) {
+//                TestNostr.NIP0666Event e = rw.events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).take();
+//                // This is a bit of a trick we have to map
+//                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
+//                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
+//                        .map(Actor::getActivePublicKey)
+//                        .findFirst()
+//                        .orElseThrow());
+//
+//
+//                rw.on(key, om.readValue(e.getContent(), ArkOnboardingRequest.class));
+//            }
 
             /// Send it out for a review
             ArkRoundVTXTreeProposal proposal = rw.createProposal();
