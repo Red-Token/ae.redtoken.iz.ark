@@ -365,6 +365,7 @@ public class AppTest2 extends LTBCMainTestCase {
                     send(Kind.ARK_ROUND_ONBOARDING_REQUEST, List.of(), om.writeValueAsString(aor));
                 }
 
+                /// Accept stuff!
                 {
                     TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_PROPOSAL).take();
                     on(om.readValue(e.getContent(), ArkRoundVTXTreeProposal.class));
@@ -727,17 +728,11 @@ public class AppTest2 extends LTBCMainTestCase {
             Thread.sleep(1000);
             System.out.println("sdfsfsdfsd");
 
-
-//            for (ArkInitiator.RoundStartWizard rsw : rsws) {
-//                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_INITIATE).take();
-//                rsw.on(om.readValue(e.getContent(), ArkRoundInitiate.class));
-//                rsw.send(Kind.ARK_ROUND_ONBOARDING_REQUEST, List.of(), om.writeValueAsString(rsw.aor));
-//            }
-
             Thread.sleep(1000);
             Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).size());
 
-            for (TestNostr.NIP0666Event e : rw.events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST)) {
+            for (int i = 0; i < 4; i++) {
+                TestNostr.NIP0666Event e = rw.events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).take();
                 // This is a bit of a trick we have to map
                 ByteBuffer key = ByteBuffer.wrap(initiators.stream()
                         .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
@@ -751,20 +746,13 @@ public class AppTest2 extends LTBCMainTestCase {
 
             /// Send it out for a review
             ArkRoundVTXTreeProposal proposal = rw.createProposal();
-
             rw.send(Kind.ARK_ROUND_PROPOSAL, List.of(), om.writeValueAsString(proposal));
-
-            /// Accept stuff!
-//            for (ArkInitiator.RoundStartWizard rsw : rsws) {
-//                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_PROPOSAL).take();
-//                rsw.on(om.readValue(e.getContent(), ArkRoundVTXTreeProposal.class));
-//                rsw.send(Kind.ARK_ROUND_PROPOSAL_ACCEPT, List.of(), om.writeValueAsString(rsw.accept));
-//            }
 
             Thread.sleep(1000);
             Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).size());
 
-            for (TestNostr.NIP0666Event e : rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT)) {
+            for (int i = 0; i < 4; i++) {
+                TestNostr.NIP0666Event e = rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).take();
                 // This is a bit of a trick we have to map
                 ByteBuffer key = ByteBuffer.wrap(initiators.stream()
                         .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
@@ -780,17 +768,12 @@ public class AppTest2 extends LTBCMainTestCase {
             rw.send(Kind.ARK_ROUND_READY_FOR_START, List.of(), om.writeValueAsString(scr));
 
             /// Sign the root
-//            for (ArkInitiator.RoundStartWizard rsw : rsws) {
-//                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_READY_FOR_START).take();
-//                rsw.on(om.readValue(e.getContent(), ArkRoundStartConfirmationRequest.class));
-//                rsw.send(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED, List.of(), om.writeValueAsString(rsw.sa));
-//            }
-
             Thread.sleep(1000);
             Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).size());
 
-            for (TestNostr.NIP0666Event e : rw.events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED)) {
-                // This is a bit of a trick we have to map
+            for (int i = 0; i < 4; i++) {
+                TestNostr.NIP0666Event e = rw.events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).take();
+
                 ByteBuffer key = ByteBuffer.wrap(initiators.stream()
                         .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
                         .map(Actor::getActivePublicKey)
