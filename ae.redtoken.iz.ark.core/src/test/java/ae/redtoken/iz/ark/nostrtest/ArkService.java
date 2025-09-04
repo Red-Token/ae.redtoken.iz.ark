@@ -125,7 +125,7 @@ public class ArkService extends Actor {
             ArkRoundVTXTreeProposal proposal = createProposal();
             send(Kind.ARK_ROUND_PROPOSAL, List.of(), om.writeValueAsString(proposal));
 
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < aorMap.size(); i++) {
                 TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).take();
                 on(e.getPubKey().toHexString(),om.readValue(e.getContent(), AppTest2.NewVTXTreeAccept.class));
             }
@@ -135,15 +135,8 @@ public class ArkService extends Actor {
             send(Kind.ARK_ROUND_READY_FOR_START, List.of(), om.writeValueAsString(scr));
 
             /// Sign the root
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < aorMap.size(); i++) {
                 TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).take();
-
-                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
-                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
-                        .map(Actor::getActivePublicKey)
-                        .findFirst()
-                        .orElseThrow());
-
                 on(e.getPubKey().toHexString(), om.readValue(e.getContent(), AppTest2.ArkRoundStartAccept.class));
             }
         }
