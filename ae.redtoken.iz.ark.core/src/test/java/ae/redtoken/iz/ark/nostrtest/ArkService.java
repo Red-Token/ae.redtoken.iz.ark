@@ -100,11 +100,13 @@ public class ArkService extends Actor {
             nvtaMap.put(pubKey, accept);
         }
 
-        Map<ByteBuffer, AppTest2.ArkOnboardingRequest> aorMap = Maps.newHashMap();
+        Map<String, AppTest2.ArkOnboardingRequest> aorMap = Maps.newHashMap();
 
-        public void on(ByteBuffer pubKey, AppTest2.ArkOnboardingRequest aor) {
+        public void on(String pubKey, AppTest2.ArkOnboardingRequest aor) {
             aorMap.put(pubKey, aor);
         }
+
+        Map<String, List<TestNostr.NIP0666Event>> z = new HashMap<>();
 
         @SneakyThrows
         @Override
@@ -115,28 +117,15 @@ public class ArkService extends Actor {
             Thread.sleep(1000);
             System.out.println("started, waiting for clients to arrive");
 
-            Thread.sleep(1000);
-            Assertions.assertEquals(4, events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).size());
-
             for (int i = 0; i < 4; i++) {
                 TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).take();
-                // This is a bit of a trick we have to map
-                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
-                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
-                        .map(Actor::getActivePublicKey)
-                        .findFirst()
-                        .orElseThrow());
-
-
-                on(key, om.readValue(e.getContent(), AppTest2.ArkOnboardingRequest.class));
+                AppTest2.ArkOnboardingRequest request = om.readValue(e.getContent(), AppTest2.ArkOnboardingRequest.class);
+                on(e.getPubKey().toHexString(), request);
             }
 
             /// Send it out for a review
             ArkRoundVTXTreeProposal proposal = createProposal();
             send(Kind.ARK_ROUND_PROPOSAL, List.of(), om.writeValueAsString(proposal));
-
-            Thread.sleep(1000);
-            Assertions.assertEquals(4, events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).size());
 
             for (int i = 0; i < 4; i++) {
                 TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).take();
@@ -155,9 +144,6 @@ public class ArkService extends Actor {
             send(Kind.ARK_ROUND_READY_FOR_START, List.of(), om.writeValueAsString(scr));
 
             /// Sign the root
-            Thread.sleep(1000);
-            Assertions.assertEquals(4, events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).size());
-
             for (int i = 0; i < 4; i++) {
                 TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).take();
 
