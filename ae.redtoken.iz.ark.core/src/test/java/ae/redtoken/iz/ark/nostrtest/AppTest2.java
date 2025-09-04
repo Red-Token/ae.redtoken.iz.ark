@@ -328,10 +328,19 @@ public class AppTest2 extends LTBCMainTestCase {
 
     static class ArkInitiator extends ArkUser {
 
-        class RoundStartWizard extends AbstractWizard {
+        class RoundStartWizard extends AbstractWizard implements Runnable {
+            private final ObjectMapper om;
+            private final Thread t;
+
             private ArkOnboardingRequest aor;
             private NewVTXTreeAccept accept;
             private ArkRoundStartAccept sa;
+
+            public RoundStartWizard(ObjectMapper om) {
+                this.om = om;
+                this.t = new Thread(this);
+                t.start();
+            }
 
             public void on(ArkRoundInitiate arkRoundInitiate) {
                 this.aor = new ArkOnboardingRequest(getActivePublicKey(), assets);
@@ -347,6 +356,27 @@ public class AppTest2 extends LTBCMainTestCase {
                 this.sa = ArkInitiator.this.sa;
             }
 
+            @SneakyThrows
+            @Override
+            public void run() {
+                {
+                    TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_INITIATE).take();
+                    on(om.readValue(e.getContent(), ArkRoundInitiate.class));
+                    send(Kind.ARK_ROUND_ONBOARDING_REQUEST, List.of(), om.writeValueAsString(aor));
+                }
+
+                {
+                    TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_PROPOSAL).take();
+                    on(om.readValue(e.getContent(), ArkRoundVTXTreeProposal.class));
+                    send(Kind.ARK_ROUND_PROPOSAL_ACCEPT, List.of(), om.writeValueAsString(accept));
+                }
+
+                {
+                    TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_READY_FOR_START).take();
+                    on(om.readValue(e.getContent(), ArkRoundStartConfirmationRequest.class));
+                    send(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED, List.of(), om.writeValueAsString(sa));
+                }
+            }
         }
 
         class CollaborativeExitWizard {
@@ -690,20 +720,22 @@ public class AppTest2 extends LTBCMainTestCase {
             /// START
             ArkRoundInitiate ari = new ArkRoundInitiate(Coin.valueOf(0, 10).getValue());
 
-            Collection<ArkInitiator.RoundStartWizard> rsws = initiators.stream().map(arkInitiator -> arkInitiator.new RoundStartWizard()).toList();
+            Collection<ArkInitiator.RoundStartWizard> rsws = initiators.stream().map(arkInitiator -> arkInitiator.new RoundStartWizard(om)).toList();
 
             rw.send(Kind.ARK_ROUND_INITIATE, List.of(), om.writeValueAsString(ari));
 
             Thread.sleep(1000);
             System.out.println("sdfsfsdfsd");
 
-            for (ArkInitiator.RoundStartWizard rsw : rsws) {
-                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_INITIATE).take();
-                rsw.on(om.readValue(e.getContent(), ArkRoundInitiate.class));
-                rsw.send(Kind.ARK_ROUND_ONBOARDING_REQUEST, List.of(), om.writeValueAsString(rsw.aor));
-            }
+
+//            for (ArkInitiator.RoundStartWizard rsw : rsws) {
+//                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_INITIATE).take();
+//                rsw.on(om.readValue(e.getContent(), ArkRoundInitiate.class));
+//                rsw.send(Kind.ARK_ROUND_ONBOARDING_REQUEST, List.of(), om.writeValueAsString(rsw.aor));
+//            }
 
             Thread.sleep(1000);
+            Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST).size());
 
             for (TestNostr.NIP0666Event e : rw.events.get(Kind.ARK_ROUND_ONBOARDING_REQUEST)) {
                 // This is a bit of a trick we have to map
@@ -723,11 +755,11 @@ public class AppTest2 extends LTBCMainTestCase {
             rw.send(Kind.ARK_ROUND_PROPOSAL, List.of(), om.writeValueAsString(proposal));
 
             /// Accept stuff!
-            for (ArkInitiator.RoundStartWizard rsw : rsws) {
-                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_PROPOSAL).take();
-                rsw.on(om.readValue(e.getContent(), ArkRoundVTXTreeProposal.class));
-                rsw.send(Kind.ARK_ROUND_PROPOSAL_ACCEPT, List.of(), om.writeValueAsString(rsw.accept));
-            }
+//            for (ArkInitiator.RoundStartWizard rsw : rsws) {
+//                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_PROPOSAL).take();
+//                rsw.on(om.readValue(e.getContent(), ArkRoundVTXTreeProposal.class));
+//                rsw.send(Kind.ARK_ROUND_PROPOSAL_ACCEPT, List.of(), om.writeValueAsString(rsw.accept));
+//            }
 
             Thread.sleep(1000);
             Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).size());
@@ -748,11 +780,11 @@ public class AppTest2 extends LTBCMainTestCase {
             rw.send(Kind.ARK_ROUND_READY_FOR_START, List.of(), om.writeValueAsString(scr));
 
             /// Sign the root
-            for (ArkInitiator.RoundStartWizard rsw : rsws) {
-                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_READY_FOR_START).take();
-                rsw.on(om.readValue(e.getContent(), ArkRoundStartConfirmationRequest.class));
-                rsw.send(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED, List.of(), om.writeValueAsString(rsw.sa));
-            }
+//            for (ArkInitiator.RoundStartWizard rsw : rsws) {
+//                TestNostr.NIP0666Event e = rsw.events.get(Kind.ARK_ROUND_READY_FOR_START).take();
+//                rsw.on(om.readValue(e.getContent(), ArkRoundStartConfirmationRequest.class));
+//                rsw.send(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED, List.of(), om.writeValueAsString(rsw.sa));
+//            }
 
             Thread.sleep(1000);
             Assertions.assertEquals(4, rw.events.get(Kind.ARK_ROUND_READY_FOR_START_CONFIRMED).size());
