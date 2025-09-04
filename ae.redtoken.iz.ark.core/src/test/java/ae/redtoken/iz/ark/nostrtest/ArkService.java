@@ -63,17 +63,16 @@ public class ArkService extends Actor {
             AppTest2.UserSignaturesMap usm = new AppTest2.UserSignaturesMap();
             usm.put(ByteUtils.formatHex(getActivePublicKey()), signedStack);
 
-            nvtaMap.forEach((byteBuffer, newVTXTreeAccept) -> usm.put(ByteUtils.formatHex(byteBuffer.array()), newVTXTreeAccept.signedStack()));
+            nvtaMap.forEach((publicKey, newVTXTreeAccept) -> usm.put(ByteUtils.formatHex(aorMap.get(publicKey).key()), newVTXTreeAccept.signedStack()));
 
             // Service signs the S part of the tree and sends out for start signatures
             AppTest2.ArkRoundStartConfirmationRequest scr = new AppTest2.ArkRoundStartConfirmationRequest(rootTx.serialize(), usm);
-//            assignWitnessToTree(nvtaMap, scr);
             assignWitnessToTree(scr);
             return scr;
         }
 
         //        Collection<AppTest2.StartAccept> startAccepts;
-        Map<ByteBuffer, AppTest2.ArkRoundStartAccept> saMap = new HashMap<>();
+        Map<String, AppTest2.ArkRoundStartAccept> saMap = new HashMap<>();
 
         public Transaction createRootTx() {
             Transaction rootTx = tree.nodes.get(tree.roots.stream().findFirst().orElseThrow());
@@ -90,13 +89,13 @@ public class ArkService extends Actor {
             return rootTx;
         }
 
-        public void on(ByteBuffer pubKey, AppTest2.ArkRoundStartAccept sa) {
+        public void on(String pubKey, AppTest2.ArkRoundStartAccept sa) {
             saMap.put(pubKey, sa);
         }
 
-        Map<ByteBuffer, AppTest2.NewVTXTreeAccept> nvtaMap = new HashMap<>();
+        Map<String, AppTest2.NewVTXTreeAccept> nvtaMap = new HashMap<>();
 
-        public void on(ByteBuffer pubKey, AppTest2.NewVTXTreeAccept accept) {
+        public void on(String pubKey, AppTest2.NewVTXTreeAccept accept) {
             nvtaMap.put(pubKey, accept);
         }
 
@@ -105,8 +104,6 @@ public class ArkService extends Actor {
         public void on(String pubKey, AppTest2.ArkOnboardingRequest aor) {
             aorMap.put(pubKey, aor);
         }
-
-        Map<String, List<TestNostr.NIP0666Event>> z = new HashMap<>();
 
         @SneakyThrows
         @Override
@@ -129,14 +126,7 @@ public class ArkService extends Actor {
 
             for (int i = 0; i < 4; i++) {
                 TestNostr.NIP0666Event e = events.get(Kind.ARK_ROUND_PROPOSAL_ACCEPT).take();
-                // This is a bit of a trick we have to map
-                ByteBuffer key = ByteBuffer.wrap(initiators.stream()
-                        .filter(arkInitiator -> arkInitiator.identity.getPublicKey().equals(e.getPubKey()))
-                        .map(Actor::getActivePublicKey)
-                        .findFirst()
-                        .orElseThrow());
-
-                on(key, om.readValue(e.getContent(), AppTest2.NewVTXTreeAccept.class));
+                on(e.getPubKey().toHexString(),om.readValue(e.getContent(), AppTest2.NewVTXTreeAccept.class));
             }
 
             /// Create the start signal
@@ -153,7 +143,7 @@ public class ArkService extends Actor {
                         .findFirst()
                         .orElseThrow());
 
-                on(key, om.readValue(e.getContent(), AppTest2.ArkRoundStartAccept.class));
+                on(e.getPubKey().toHexString(), om.readValue(e.getContent(), AppTest2.ArkRoundStartAccept.class));
             }
         }
     }
@@ -199,15 +189,4 @@ public class ArkService extends Actor {
 
         this.acec = new AppTest2.ArkCollaborativeExitAccept(assig);
     }
-
-
-//    public Collection<AppTest2.ArkVirtualTransactionNode> prepareSignatures(AppTest2.ArkTree tree) {
-//
-//        return tree.nodes.values().stream()
-//                .filter(transaction -> !tree.roots.contains(transaction.getTxId()))
-//                .map(transaction -> new AppTest2.ArkVirtualTransactionNode(
-//                        transaction.transaction(),
-//                        tree.getLock(transaction)))
-//                .toList();
-//    }
 }
